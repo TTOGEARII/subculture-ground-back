@@ -34,7 +34,7 @@ export class Performance {
   @Column({ name: 'sb_performances_time', type: 'varchar', length: 10, comment: '공연 시간' })
   performanceTime: string;
 
-  @Column({ name: 'sb_performances_category', type: 'varchar', length: 50, comment: '카테고리(페스티벌, 록, 일렉트로닉 등)' })
+  @Column({ name: 'sb_performances_category', type: 'longtext', comment: '카테고리 JSON 배열 (예: ["록","jpop"])' })
   performanceCategory: string;
 
   @Column({
