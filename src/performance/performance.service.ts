@@ -44,4 +44,34 @@ export class PerformanceService {
       throw error;
     }
   }
+
+  async findOne(idx: number): Promise<any | null> {
+    try {
+      const performance = await this.performanceRepository.findOne({
+        where: { idx },
+      });
+
+      if (!performance) {
+        return null;
+      }
+
+      const categoryArray = parseJsonArray(performance.performanceCategory);
+
+      // 파싱 실패 시 로그 출력 (빈 배열이 아닌 경우에만)
+      if (performance.performanceCategory && categoryArray.length === 0) {
+        this.logger.warn(`카테고리 JSON 파싱 실패 (idx: ${performance.idx}):`, {
+          원본값: performance.performanceCategory,
+        });
+      }
+
+      // 응답 객체 생성 (performanceCategory를 배열로 변환)
+      return {
+        ...performance,
+        performanceCategory: categoryArray,
+      };
+    } catch (error) {
+      this.logger.error(`공연 조회 중 오류 발생 (idx: ${idx})`, error.stack);
+      throw error;
+    }
+  }
 }
