@@ -2,8 +2,11 @@ import { DataSource } from 'typeorm';
 import { config } from 'dotenv';
 import { join } from 'path';
 import { existsSync } from 'fs';
-import { User } from './src/user/user.entity';
+import { Member } from './src/member/member.entity';
 import { Performance } from './src/performance/performance.entity';
+import { TicketInfo } from './src/ticket-info/ticket-info.entity';
+import { TicketUser } from './src/ticket-user/ticket-user.entity';
+import { MemberBankAccount } from './src/member-bank-account/member-bank-account.entity';
 
 // .env 파일 로드 (Docker 환경에서는 환경 변수가 이미 설정되어 있을 수 있음)
 // 프로젝트 루트의 .env 파일 경로 (subculture-ground/.env)
@@ -23,7 +26,7 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'subculture_ground',
-  entities: [User, Performance],
+  entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount],
   migrations: ['src/migrations/*.ts'],
   synchronize: false, // 마이그레이션 사용 시 false로 설정
   logging: true,
