@@ -25,12 +25,19 @@ export class AuthService {
     }
 
     // 사용자 생성 (비밀번호는 해시되어 저장되므로 로그에 노출되지 않음)
+    // birthDate는 date 타입이므로 날짜만 저장 (시간 제거)
+    let birthDateObj: Date | undefined;
+    if (birthDate) {
+      const date = new Date(birthDate);
+      // 날짜만 사용 (시간 제거)
+      birthDateObj = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
     const user = await this.memberService.create(
       email,
       password,
       name,
       phone,
-      birthDate ? new Date(birthDate) : undefined,
+      birthDateObj,
     );
 
     // 상태 확인 (차단된 사용자 체크)

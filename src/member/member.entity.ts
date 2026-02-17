@@ -34,7 +34,9 @@ export class Member {
   @Column({
     name: 'sb_status',
     type: 'tinyint',
+    width: 4,
     default: 1,
+    nullable: false,
     comment: '0:차단, 1:정상',
   })
   sbStatus: number;

@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { TicketUser } from './ticket-user.entity';
 import { CreateTicketUserDto } from './dto/create-ticket-user.dto';
 import { UpdateTicketUserDto } from './dto/update-ticket-user.dto';
@@ -42,7 +42,7 @@ export class TicketUserService {
 
   async findByUserIdx(userIdx: number): Promise<TicketUser[]> {
     return this.ticketUserRepository.find({
-      where: { userIdx, deleteDt: null },
+      where: { userIdx, deleteDt: IsNull() },
       order: { idx: 'DESC' },
     });
   }

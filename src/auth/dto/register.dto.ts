@@ -24,7 +24,7 @@ export class RegisterDto {
 
   @IsString()
   @IsOptional()
-  @Matches(/^[0-9-]+$/, { message: '올바른 전화번호 형식이 아닙니다.' })
+  @Matches(/^[0-9]+$/, { message: '올바른 전화번호 형식이 아닙니다. (숫자만 입력해주세요)' })
   phone?: string;
 
   @IsDateString({}, { message: '올바른 날짜 형식이 아닙니다.' })
