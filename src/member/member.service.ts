@@ -1,30 +1,30 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { Member } from './member.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
-export class UserService {
+export class MemberService {
   constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
+    @InjectRepository(Member)
+    private memberRepository: Repository<Member>,
   ) {}
 
-  async findByEmail(email: string): Promise<User | null> {
-    const user = await this.userRepository.findOne({
+  async findByEmail(email: string): Promise<Member | null> {
+    const member = await this.memberRepository.findOne({
       where: { sbEmail: email },
       withDeleted: false, // 삭제된 사용자는 제외
     });
-    return user as User | null;
+    return member as Member | null;
   }
 
-  async findById(idx: number): Promise<User | null> {
-    const user = await this.userRepository.findOne({
+  async findById(idx: number): Promise<Member | null> {
+    const member = await this.memberRepository.findOne({
       where: { idx },
       withDeleted: false,
     });
-    return user as User | null;
+    return member as Member | null;
   }
 
   async create(
@@ -33,9 +33,9 @@ export class UserService {
     name: string,
     phone?: string,
     birthDate?: Date,
-  ): Promise<User> {
+  ): Promise<Member> {
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = this.userRepository.create({
+    const member = this.memberRepository.create({
       sbEmail: email,
       sbPassword: hashedPassword,
       sbName: name,
@@ -44,8 +44,8 @@ export class UserService {
       sbStatus: 1, // 기본값: 정상
       sbEmailVerifiedAt: null,
     });
-    const savedUser = await this.userRepository.save(user);
-    return savedUser as User;
+    const savedMember = await this.memberRepository.save(member);
+    return savedMember as Member;
   }
 
   async validatePassword(
@@ -57,11 +57,11 @@ export class UserService {
   }
 
   async updateStatus(idx: number, status: number): Promise<void> {
-    await this.userRepository.update({ idx }, { sbStatus: status });
+    await this.memberRepository.update({ idx }, { sbStatus: status });
   }
 
   async verifyEmail(idx: number): Promise<void> {
-    await this.userRepository.update(
+    await this.memberRepository.update(
       { idx },
       { sbEmailVerifiedAt: new Date() },
     );

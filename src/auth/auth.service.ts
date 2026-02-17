@@ -4,14 +4,14 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserService } from '../user/user.service';
+import { MemberService } from '../member/member.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private userService: UserService,
+    private memberService: MemberService,
     private jwtService: JwtService,
   ) {}
 
@@ -19,13 +19,13 @@ export class AuthService {
     const { email, password, name, phone, birthDate } = registerDto;
 
     // 이메일 중복 확인
-    const existingUser = await this.userService.findByEmail(email);
+    const existingUser = await this.memberService.findByEmail(email);
     if (existingUser) {
       throw new ConflictException('이미 사용 중인 이메일입니다.');
     }
 
     // 사용자 생성 (비밀번호는 해시되어 저장되므로 로그에 노출되지 않음)
-    const user = await this.userService.create(
+    const user = await this.memberService.create(
       email,
       password,
       name,
@@ -61,7 +61,7 @@ export class AuthService {
     const { email, password } = loginDto;
 
     // 사용자 찾기
-    const user = await this.userService.findByEmail(email);
+    const user = await this.memberService.findByEmail(email);
     if (!user) {
       // 보안: 구체적인 에러 메시지로 정보 노출 방지
       throw new UnauthorizedException(
@@ -75,7 +75,7 @@ export class AuthService {
     }
 
     // 비밀번호 확인
-    const isPasswordValid = await this.userService.validatePassword(
+    const isPasswordValid = await this.memberService.validatePassword(
       password,
       user.sbPassword,
     );
@@ -106,7 +106,7 @@ export class AuthService {
   }
 
   async validateUser(userIdx: number) {
-    const user = await this.userService.findById(userIdx);
+    const user = await this.memberService.findById(userIdx);
     if (!user) {
       throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
     }

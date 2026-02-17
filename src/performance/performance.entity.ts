@@ -34,9 +34,6 @@ export class Performance {
   @Column({ name: 'sb_performances_time', type: 'varchar', length: 10, comment: '공연 시간' })
   performanceTime: string;
 
-  @Column({ name: 'sb_performances_category', type: 'longtext', comment: '카테고리 JSON 배열 (예: ["록","jpop"])' })
-  performanceCategory: string;
-
   @Column({
     name: 'sb_performances_status',
     type: 'tinyint',
@@ -44,9 +41,6 @@ export class Performance {
     comment: '0: 예매마감, 1: 예매중',
   })
   performanceStatus: PerformanceStatus;
-
-  @Column({ name: 'sb_performances_price', type: 'int', unsigned: true, default: 0, comment: '가격(원)' })
-  performancePrice: number;
 
   @Column({
     name: 'sb_performances_image',
@@ -65,12 +59,21 @@ export class Performance {
   })
   performanceDescription: string | null;
 
-  @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
+  @Column({ name: 'ticket_idx', type: 'bigint', default: 0, comment: 'sb_ticket_info.idx' })
+  ticketIdx: number;
+
+  @Column({ name: 'create_user_idx', type: 'bigint', comment: 'sb_member.idx' })
+  createUserIdx: number;
+
+  @Column({ name: 'sb_performances_category', type: 'longtext', comment: '카테고리 JSON 배열 (예: ["록","jpop"])' })
+  performanceCategory: string;
+
+  @CreateDateColumn({ name: 'created_at', type: 'timestamp', precision: 6 })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp', precision: 6 })
   updatedAt: Date;
 
-  @DeleteDateColumn({ name: 'deleted_at', type: 'timestamp', nullable: true })
+  @DeleteDateColumn({ name: 'deleted_at', type: 'timestamp', precision: 6, nullable: true })
   deletedAt: Date | null;
 }

@@ -12,7 +12,7 @@ import {
 @Index('idx_sb_email', ['sbEmail'])
 @Index('idx_sb_password', ['sbPassword'])
 @Index('idx_created_at', ['createdAt'])
-export class User {
+export class Member {
   @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
   idx: number;
 
