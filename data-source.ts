@@ -27,7 +27,9 @@ export default new DataSource({
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'subculture_ground',
   entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount],
-  migrations: ['src/migrations/*.ts'],
+  migrations: process.env.NODE_ENV === 'production'
+    ? ['dist/migrations/*.js']
+    : ['src/migrations/*.ts'],
   synchronize: false, // 마이그레이션 사용 시 false로 설정
   logging: true,
   charset: 'utf8mb4',

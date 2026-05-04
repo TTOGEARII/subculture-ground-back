@@ -26,28 +26,24 @@ export default tseslint.config(
   },
   {
     rules: {
+      // 실제로 버그로 이어질 수 있는 것만 warn
+      '@typescript-eslint/no-floating-promises': 'warn',   // await 안 한 Promise
+      '@typescript-eslint/no-unused-vars': 'warn',         // 안 쓰는 변수
+
+      // any 관련 — NestJS 실무에서 불가피한 경우가 많아 전부 off
       '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/no-floating-promises': 'warn',
-      '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
-    },
-  },
-  {
-    files: ['**/*.entity.ts'],
-    rules: {
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-    },
-  },
-  {
-    files: ['**/*.service.ts'],
-    rules: {
       '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
+
+      // 너무 pedantic한 규칙들
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      '@typescript-eslint/no-redundant-type-constituents': 'off',
+
+      // prettier는 eslint 말고 npm run format으로 따로 관리
+      'prettier/prettier': 'off',
     },
   },
 );

@@ -24,7 +24,7 @@ import { MemberBankAccountModule } from './member-bank-account/member-bank-accou
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'subculture_ground',
       entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount],
-      synchronize: true, // 프로덕션에서는 false로 설정하고 마이그레이션 사용
+      synchronize: process.env.NODE_ENV !== 'production',
     }),
     MemberModule,
     AuthModule,
