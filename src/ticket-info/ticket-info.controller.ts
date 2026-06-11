@@ -10,10 +10,14 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
 import { TicketInfoService } from './ticket-info.service';
 import { CreateTicketInfoDto } from './dto/create-ticket-info.dto';
 import { UpdateTicketInfoDto } from './dto/update-ticket-info.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { UserPayload } from '../auth/types/user-payload.interface';
 
 @Controller('ticket-info')
 export class TicketInfoController {
@@ -21,10 +25,14 @@ export class TicketInfoController {
 
   constructor(private readonly ticketInfoService: TicketInfoService) {}
 
+  // 조회(GET)는 공개 — 구매자가 공연 상세에서 티켓을 봐야 한다.
+  // 생성/수정/삭제는 인증 + 본인 공연 소유 검증.
+
   @Post()
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() dto: CreateTicketInfoDto) {
-    return this.ticketInfoService.create(dto);
+  async create(@Body() dto: CreateTicketInfoDto, @CurrentUser() user: UserPayload) {
+    return this.ticketInfoService.create(dto, user.idx);
   }
 
   @Get()
@@ -44,13 +52,19 @@ export class TicketInfoController {
   }
 
   @Put(':idx')
-  async update(@Param('idx') idx: string, @Body() dto: UpdateTicketInfoDto) {
-    return this.ticketInfoService.update(Number(idx), dto);
+  @UseGuards(JwtAuthGuard)
+  async update(
+    @Param('idx') idx: string,
+    @Body() dto: UpdateTicketInfoDto,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.ticketInfoService.update(Number(idx), dto, user.idx);
   }
 
   @Delete(':idx')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('idx') idx: string) {
-    await this.ticketInfoService.remove(Number(idx));
+  async remove(@Param('idx') idx: string, @CurrentUser() user: UserPayload) {
+    await this.ticketInfoService.remove(Number(idx), user.idx);
   }
 }
