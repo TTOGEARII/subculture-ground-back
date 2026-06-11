@@ -1,10 +1,32 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, IsNull } from 'typeorm';
-import { TicketUser } from './ticket-user.entity';
+import { TicketUser, TicketUserStatus } from './ticket-user.entity';
 import { TicketInfo } from '../ticket-info/ticket-info.entity';
+import { Performance } from '../performance/performance.entity';
 import { CreateTicketUserDto } from './dto/create-ticket-user.dto';
 import { UpdateTicketUserDto } from './dto/update-ticket-user.dto';
+
+// 예매자 관리용 조인 응답
+export interface ReservationRow {
+  idx: number;
+  ticketName: string | null;
+  ticketType: number;
+  ticketCnt: number;
+  ticketTotalPrice: number;
+  ticketStatus: TicketUserStatus;
+  ticketChkDt: Date | null;
+  createDt: Date | null;
+  buyerName: string | null;
+  buyerEmail: string | null;
+  buyerPhone: string | null;
+}
 
 @Injectable()
 export class TicketUserService {
@@ -13,8 +35,97 @@ export class TicketUserService {
   constructor(
     @InjectRepository(TicketUser)
     private ticketUserRepository: Repository<TicketUser>,
+    @InjectRepository(Performance)
+    private performanceRepository: Repository<Performance>,
     private dataSource: DataSource,
   ) {}
+
+  /** 예매(ticket-user)가 속한 공연이 요청 유저 소유인지 검증하고 공연을 반환한다. */
+  private async assertReservationOwnership(
+    reservationIdx: number,
+    userIdx: number,
+  ): Promise<TicketUser> {
+    const row = await this.ticketUserRepository.findOne({
+      where: { idx: reservationIdx },
+    });
+    if (!row) throw new NotFoundException('예매 내역을 찾을 수 없습니다.');
+
+    const ticketInfo = await this.dataSource
+      .getRepository(TicketInfo)
+      .findOne({ where: { idx: row.ticketIdx } });
+    if (!ticketInfo) throw new NotFoundException('티켓 정보를 찾을 수 없습니다.');
+
+    const performance = await this.performanceRepository.findOne({
+      where: { idx: ticketInfo.pmIdx },
+    });
+    if (!performance) throw new NotFoundException('공연을 찾을 수 없습니다.');
+    if (Number(performance.createUserIdx) !== Number(userIdx)) {
+      throw new ForbiddenException('본인 공연의 예매만 관리할 수 있습니다.');
+    }
+    return row;
+  }
+
+  /** 공연별 예매자 목록 (구매자/티켓 정보 조인). 호스트 소유 검증 포함. */
+  async findReservationsByPerformance(
+    pmIdx: number,
+    userIdx: number,
+  ): Promise<ReservationRow[]> {
+    const performance = await this.performanceRepository.findOne({
+      where: { idx: pmIdx },
+    });
+    if (!performance) throw new NotFoundException('공연을 찾을 수 없습니다.');
+    if (Number(performance.createUserIdx) !== Number(userIdx)) {
+      throw new ForbiddenException('본인 공연의 예매만 조회할 수 있습니다.');
+    }
+
+    const rows = await this.ticketUserRepository
+      .createQueryBuilder('tu')
+      .innerJoin(TicketInfo, 'ti', 'ti.idx = tu.ticketIdx')
+      .leftJoin('sb_member', 'm', 'm.idx = tu.userIdx')
+      .where('ti.pm_idx = :pmIdx', { pmIdx })
+      .andWhere('tu.deleteDt IS NULL')
+      .orderBy('tu.idx', 'DESC')
+      .select([
+        'tu.idx AS idx',
+        'ti.ticket_name AS ticketName',
+        'ti.ticket_type AS ticketType',
+        'tu.ticket_cnt AS ticketCnt',
+        'tu.ticket_total_price AS ticketTotalPrice',
+        'tu.ticket_status AS ticketStatus',
+        'tu.ticket_chk_dt AS ticketChkDt',
+        'tu.create_dt AS createDt',
+        'm.sb_name AS buyerName',
+        'm.sb_email AS buyerEmail',
+        'm.sb_phone AS buyerPhone',
+      ])
+      .getRawMany<ReservationRow>();
+
+    return rows.map((r) => ({
+      ...r,
+      idx: Number(r.idx),
+      ticketType: Number(r.ticketType),
+      ticketCnt: Number(r.ticketCnt),
+      ticketTotalPrice: Number(r.ticketTotalPrice),
+      ticketStatus: Number(r.ticketStatus) as TicketUserStatus,
+    }));
+  }
+
+  /** 예매 상태 변경 (승인/취소/체크인). 호스트 소유 검증 + 상태별 타임스탬프. */
+  async changeStatus(
+    reservationIdx: number,
+    status: TicketUserStatus,
+    userIdx: number,
+  ): Promise<TicketUser> {
+    const row = await this.assertReservationOwnership(reservationIdx, userIdx);
+    const now = new Date();
+    row.ticketStatus = status;
+    if (status === 1) row.ticketPayCompleteDt = now; // 결제완료
+    if (status === 2) row.ticketChkDt = now; // 체크인
+    row.updateDt = now;
+    await this.ticketUserRepository.save(row);
+    this.logger.log(`예매 상태 변경: idx=${reservationIdx}, status=${status}`);
+    return row;
+  }
 
   async create(dto: CreateTicketUserDto): Promise<TicketUser> {
     const cnt = dto.ticketCnt ?? 1;
