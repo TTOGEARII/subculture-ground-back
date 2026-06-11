@@ -1,7 +1,13 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TicketInfo } from './ticket-info.entity';
+import { Performance } from '../performance/performance.entity';
 import { CreateTicketInfoDto } from './dto/create-ticket-info.dto';
 import { UpdateTicketInfoDto } from './dto/update-ticket-info.dto';
 
@@ -12,9 +18,25 @@ export class TicketInfoService {
   constructor(
     @InjectRepository(TicketInfo)
     private ticketInfoRepository: Repository<TicketInfo>,
+    @InjectRepository(Performance)
+    private performanceRepository: Repository<Performance>,
   ) {}
 
-  async create(dto: CreateTicketInfoDto): Promise<TicketInfo> {
+  /** 해당 공연(pmIdx)이 요청 유저의 소유인지 검증한다. */
+  private async assertOwnership(pmIdx: number, userIdx: number): Promise<void> {
+    const performance = await this.performanceRepository.findOne({
+      where: { idx: pmIdx },
+    });
+    if (!performance) {
+      throw new NotFoundException('공연을 찾을 수 없습니다.');
+    }
+    if (Number(performance.createUserIdx) !== Number(userIdx)) {
+      throw new ForbiddenException('본인 공연의 티켓만 관리할 수 있습니다.');
+    }
+  }
+
+  async create(dto: CreateTicketInfoDto, userIdx: number): Promise<TicketInfo> {
+    await this.assertOwnership(dto.pmIdx, userIdx);
     const entity = this.ticketInfoRepository.create({
       pmIdx: dto.pmIdx,
       ticketName: dto.ticketName ?? null,
@@ -50,8 +72,9 @@ export class TicketInfoService {
     return ticket;
   }
 
-  async update(idx: number, dto: UpdateTicketInfoDto): Promise<TicketInfo> {
+  async update(idx: number, dto: UpdateTicketInfoDto, userIdx: number): Promise<TicketInfo> {
     const ticket = await this.findOne(idx);
+    await this.assertOwnership(ticket.pmIdx, userIdx);
     if (dto.pmIdx !== undefined) ticket.pmIdx = dto.pmIdx;
     if (dto.ticketName !== undefined) ticket.ticketName = dto.ticketName;
     if (dto.ticketCount !== undefined) ticket.ticketCount = dto.ticketCount;
@@ -67,8 +90,12 @@ export class TicketInfoService {
     return ticket;
   }
 
-  async remove(idx: number): Promise<void> {
+  async remove(idx: number, userIdx: number): Promise<void> {
     const ticket = await this.findOne(idx);
+    await this.assertOwnership(ticket.pmIdx, userIdx);
+    if (ticket.ticketCount > 0) {
+      throw new ForbiddenException('이미 예매된 티켓은 삭제할 수 없습니다.');
+    }
     ticket.delFlag = 1;
     ticket.deleteDt = new Date();
     ticket.updateDt = new Date();
