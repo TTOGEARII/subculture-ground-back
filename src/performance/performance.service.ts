@@ -114,6 +114,9 @@ export class PerformanceService {
         performanceName: createDto.performanceName,
         performanceArtist: createDto.performanceArtist,
         performanceVenue: createDto.performanceVenue,
+        performanceAddress: createDto.performanceAddress ?? null,
+        performanceLat: createDto.performanceLat ?? null,
+        performanceLng: createDto.performanceLng ?? null,
         performanceDate: createDto.performanceDate,
         performanceTime: createDto.performanceTime,
         performanceImage: createDto.performanceImage || null,
@@ -157,6 +160,15 @@ export class PerformanceService {
       }
       if (updateDto.performanceVenue !== undefined) {
         performance.performanceVenue = updateDto.performanceVenue;
+      }
+      if (updateDto.performanceAddress !== undefined) {
+        performance.performanceAddress = updateDto.performanceAddress;
+      }
+      if (updateDto.performanceLat !== undefined) {
+        performance.performanceLat = updateDto.performanceLat;
+      }
+      if (updateDto.performanceLng !== undefined) {
+        performance.performanceLng = updateDto.performanceLng;
       }
       if (updateDto.performanceDate !== undefined) {
         performance.performanceDate = updateDto.performanceDate;

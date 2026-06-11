@@ -25,6 +25,19 @@ export class CreatePerformanceDto {
   @MaxLength(255, { message: '공연 장소는 255자 이하여야 합니다.' })
   performanceVenue: string;
 
+  @IsString()
+  @IsOptional()
+  @MaxLength(500, { message: '상세주소는 500자 이하여야 합니다.' })
+  performanceAddress?: string | null;
+
+  @IsNumber()
+  @IsOptional()
+  performanceLat?: number;
+
+  @IsNumber()
+  @IsOptional()
+  performanceLng?: number;
+
   @IsDateString({}, { message: '올바른 날짜 형식이 아닙니다.' })
   @IsNotEmpty({ message: '공연 날짜를 입력해주세요.' })
   performanceDate: string;

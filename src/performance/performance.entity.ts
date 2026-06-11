@@ -28,6 +28,35 @@ export class Performance {
   @Column({ name: 'sb_performances_venue', type: 'varchar', length: 255, comment: '장소' })
   performanceVenue: string;
 
+  @Column({
+    name: 'sb_performances_address',
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+    comment: '상세주소(도로명/지번)',
+  })
+  performanceAddress: string | null;
+
+  @Column({
+    name: 'sb_performances_lat',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+    comment: '위도',
+  })
+  performanceLat: string | null;
+
+  @Column({
+    name: 'sb_performances_lng',
+    type: 'decimal',
+    precision: 10,
+    scale: 7,
+    nullable: true,
+    comment: '경도',
+  })
+  performanceLng: string | null;
+
   @Column({ name: 'sb_performances_date', type: 'date', comment: '공연일' })
   performanceDate: string;
 
