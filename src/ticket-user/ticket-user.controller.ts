@@ -54,6 +54,32 @@ export class TicketUserController {
     return this.ticketUserService.findAll();
   }
 
+  // 공연별 예매자 목록 (호스트). ':idx'보다 먼저 선언해야 라우트 충돌이 없다.
+  @Get('reservations')
+  async reservations(
+    @Query('pmIdx') pmIdx: string,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.ticketUserService.findReservationsByPerformance(
+      Number(pmIdx),
+      user.idx,
+    );
+  }
+
+  // 예매 상태 변경 (승인/취소/체크인). status: 0 대기 / 1 결제완료 / 2 체크완료 / 3 취소
+  @Put(':idx/status')
+  async changeStatus(
+    @Param('idx') idx: string,
+    @Body('status') status: number,
+    @CurrentUser() user: UserPayload,
+  ) {
+    return this.ticketUserService.changeStatus(
+      Number(idx),
+      Number(status) as 0 | 1 | 2 | 3,
+      user.idx,
+    );
+  }
+
   @Get(':idx')
   async findOne(@Param('idx') idx: string) {
     return this.ticketUserService.findOne(Number(idx));
