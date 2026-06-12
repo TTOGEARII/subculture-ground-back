@@ -10,6 +10,7 @@ import { DataSource, Repository, IsNull } from 'typeorm';
 import { TicketUser, TicketUserStatus } from './ticket-user.entity';
 import { TicketInfo } from '../ticket-info/ticket-info.entity';
 import { Performance } from '../performance/performance.entity';
+import { KakaoService } from '../kakao/kakao.service';
 import { CreateTicketUserDto } from './dto/create-ticket-user.dto';
 import { UpdateTicketUserDto } from './dto/update-ticket-user.dto';
 
@@ -38,6 +39,7 @@ export class TicketUserService {
     @InjectRepository(Performance)
     private performanceRepository: Repository<Performance>,
     private dataSource: DataSource,
+    private kakaoService: KakaoService,
   ) {}
 
   /** 예매(ticket-user)가 속한 공연이 요청 유저 소유인지 검증하고 공연을 반환한다. */
@@ -130,7 +132,7 @@ export class TicketUserService {
   async create(dto: CreateTicketUserDto): Promise<TicketUser> {
     const cnt = dto.ticketCnt ?? 1;
 
-    return this.dataSource.transaction(async (manager) => {
+    const saved = await this.dataSource.transaction(async (manager) => {
       // 잔여 수량 확인 (비관적 잠금으로 동시 예매 방지)
       const ticketInfo = await manager.findOne(TicketInfo, {
         where: { idx: dto.ticketIdx },
@@ -164,6 +166,42 @@ export class TicketUserService {
       const saved = await manager.save(TicketUser, entity);
       this.logger.log(`티켓 예매 생성: idx=${saved.idx}, ticketIdx=${dto.ticketIdx}, cnt=${cnt}`);
       return saved;
+    });
+
+    // 예매 완료 → 카카오톡 알림 (best-effort: 실패해도 예매에는 영향 없음)
+    this.notifyBooking(
+      dto.userIdx,
+      dto.ticketIdx,
+      cnt,
+      dto.ticketTotalPrice ?? 0,
+    ).catch((e) =>
+      this.logger.warn(`예매 알림 발송 중 오류: ${e?.message ?? e}`),
+    );
+
+    return saved;
+  }
+
+  /** 예매 완료 카카오톡 알림 발송 (구매자가 카카오 회원일 때만). */
+  private async notifyBooking(
+    userIdx: number,
+    ticketIdx: number,
+    count: number,
+    totalPrice: number,
+  ): Promise<void> {
+    const ticketInfo = await this.dataSource
+      .getRepository(TicketInfo)
+      .findOne({ where: { idx: ticketIdx } });
+    if (!ticketInfo) return;
+    const performance = await this.performanceRepository.findOne({
+      where: { idx: ticketInfo.pmIdx },
+    });
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    await this.kakaoService.sendBookingNotification(userIdx, {
+      eventName: performance?.performanceName ?? '공연',
+      ticketName: ticketInfo.ticketName ?? '티켓',
+      count,
+      totalPrice,
+      linkUrl: `${frontendUrl}/my-page`,
     });
   }
 
