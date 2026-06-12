@@ -201,7 +201,8 @@ export class TicketUserService {
       ticketName: ticketInfo.ticketName ?? '티켓',
       count: row.ticketCnt,
       reservationIdx: row.idx,
-      linkUrl: `${frontendUrl}/my-page`,
+      // 카톡 QR/버튼을 탭하면 확대해서 볼 수 있는 예매 내역 페이지로 이동
+      linkUrl: `${frontendUrl}/my-page/reservations`,
     });
   }
 
