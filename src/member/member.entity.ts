@@ -19,8 +19,8 @@ export class Member {
   @Column({ name: 'sb_email', type: 'varchar', length: 255, unique: true })
   sbEmail: string;
 
-  @Column({ name: 'sb_password', type: 'varchar', length: 255 })
-  sbPassword: string;
+  @Column({ name: 'sb_password', type: 'varchar', length: 255, nullable: true, comment: '소셜 로그인 회원은 null' })
+  sbPassword: string | null;
 
   @Column({ name: 'sb_name', type: 'varchar', length: 100 })
   sbName: string;
