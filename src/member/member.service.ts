@@ -10,6 +10,11 @@ export interface SocialProfile {
   providerUserId: string;
   email: string | null;
   nickname: string | null;
+  profileImage?: string | null;
+  // 메시지 발송용 토큰 (선택)
+  accessToken?: string | null;
+  refreshToken?: string | null;
+  tokenExpiresAt?: Date | null;
 }
 
 @Injectable()
@@ -31,42 +36,60 @@ export class MemberService {
     const linked = await this.socialRepository.findOne({
       where: { provider: profile.provider, providerUserId: profile.providerUserId },
     });
-    if (linked) {
-      const member = await this.findById(linked.userIdx);
-      if (member) return member;
-    }
 
-    // 이메일로 기존 회원 매칭 (이메일 제공 동의한 경우)
     let member: Member | null = null;
-    if (profile.email) {
-      member = await this.findByEmail(profile.email);
+    if (linked) {
+      member = await this.findById(linked.userIdx);
     }
 
+    // 연결이 없으면: 이메일로 기존 회원 매칭, 없으면 신규 생성
     if (!member) {
-      const email = profile.email ?? `${profile.provider}_${profile.providerUserId}@social.local`;
-      member = this.memberRepository.create({
-        sbEmail: email,
-        sbPassword: null,
-        sbName: profile.nickname ?? '소셜 사용자',
-        sbPhone: null,
-        sbBirthDate: null,
-        sbStatus: 1,
-        sbEmailVerifiedAt: profile.email ? new Date() : null,
-      });
-      member = await this.memberRepository.save(member);
+      if (profile.email) {
+        member = await this.findByEmail(profile.email);
+      }
+      if (!member) {
+        const email = profile.email ?? `${profile.provider}_${profile.providerUserId}@social.local`;
+        member = this.memberRepository.create({
+          sbEmail: email,
+          sbPassword: null,
+          sbName: profile.nickname ?? '소셜 사용자',
+          sbProfileImage: profile.profileImage ?? null,
+          sbPhone: null,
+          sbBirthDate: null,
+          sbStatus: 1,
+          sbEmailVerifiedAt: profile.email ? new Date() : null,
+        });
+        member = await this.memberRepository.save(member);
+      }
     }
 
-    if (!linked) {
-      await this.socialRepository.save(
-        this.socialRepository.create({
-          userIdx: member.idx,
-          provider: profile.provider,
-          providerUserId: profile.providerUserId,
-          email: profile.email,
-          nickname: profile.nickname,
-        }),
-      );
+    // 프로필 이미지/이름 최신화 (소셜 회원이 직접 바꾸지 않은 경우)
+    let memberChanged = false;
+    if (profile.profileImage && member.sbProfileImage !== profile.profileImage) {
+      member.sbProfileImage = profile.profileImage;
+      memberChanged = true;
     }
+    // 이름이 기본 플레이스홀더일 때만 닉네임으로 갱신 (사용자가 바꾼 이름은 보존)
+    if (profile.nickname && (!member.sbName || member.sbName === '소셜 사용자')) {
+      member.sbName = profile.nickname;
+      memberChanged = true;
+    }
+    if (memberChanged) await this.memberRepository.save(member);
+
+    // 소셜 계정 upsert — 닉네임/이미지/토큰을 매 로그인마다 갱신 (메시지 발송용 토큰 유지)
+    const social = linked ?? this.socialRepository.create({
+      userIdx: member.idx,
+      provider: profile.provider,
+      providerUserId: profile.providerUserId,
+    });
+    social.userIdx = member.idx;
+    social.email = profile.email;
+    social.nickname = profile.nickname;
+    social.profileImage = profile.profileImage ?? null;
+    if (profile.accessToken !== undefined) social.accessToken = profile.accessToken;
+    if (profile.refreshToken !== undefined) social.refreshToken = profile.refreshToken;
+    if (profile.tokenExpiresAt !== undefined) social.tokenExpiresAt = profile.tokenExpiresAt;
+    await this.socialRepository.save(social);
 
     return member;
   }

@@ -38,6 +38,18 @@ export class SocialAccount {
   @Column({ name: 'nickname', type: 'varchar', length: 100, nullable: true, comment: '소셜 닉네임' })
   nickname: string | null;
 
+  @Column({ name: 'profile_image', type: 'varchar', length: 500, nullable: true, comment: '소셜 프로필 이미지 URL' })
+  profileImage: string | null;
+
+  @Column({ name: 'access_token', type: 'text', nullable: true, comment: '카카오 액세스 토큰 (메시지 발송용)' })
+  accessToken: string | null;
+
+  @Column({ name: 'refresh_token', type: 'text', nullable: true, comment: '카카오 리프레시 토큰' })
+  refreshToken: string | null;
+
+  @Column({ name: 'token_expires_at', type: 'datetime', nullable: true, comment: '액세스 토큰 만료 시각' })
+  tokenExpiresAt: Date | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp' })
   createdAt: Date;
 

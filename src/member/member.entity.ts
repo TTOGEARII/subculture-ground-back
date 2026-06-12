@@ -25,6 +25,9 @@ export class Member {
   @Column({ name: 'sb_name', type: 'varchar', length: 100 })
   sbName: string;
 
+  @Column({ name: 'sb_profile_image', type: 'varchar', length: 500, nullable: true, comment: '프로필 이미지 URL (소셜)' })
+  sbProfileImage: string | null;
+
   @Column({ name: 'sb_phone', type: 'varchar', length: 20, nullable: true })
   sbPhone: string | null;
 
