@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   ConflictException,
 } from '@nestjs/common';
@@ -10,6 +11,8 @@ import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private memberService: MemberService,
     private jwtService: JwtService,
@@ -133,17 +136,26 @@ export class AuthService {
     }
 
     // 1) 인가코드 → 카카오 액세스 토큰
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: restKey,
+      redirect_uri: redirectUri,
+      code,
+    });
+    // 카카오 앱에서 Client Secret을 '사용함'으로 켠 경우 필수
+    const clientSecret = process.env.KAKAO_CLIENT_SECRET;
+    if (clientSecret) tokenBody.set('client_secret', clientSecret);
+
     const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: restKey,
-        redirect_uri: redirectUri,
-        code,
-      }),
+      body: tokenBody,
     });
     if (!tokenRes.ok) {
+      const body = await tokenRes.text();
+      this.logger.error(
+        `카카오 토큰 발급 실패 (status=${tokenRes.status}, redirectUri=${redirectUri}): ${body}`,
+      );
       throw new UnauthorizedException('카카오 토큰 발급에 실패했습니다.');
     }
     const tokenJson: any = await tokenRes.json();
@@ -153,6 +165,10 @@ export class AuthService {
       headers: { Authorization: `Bearer ${tokenJson.access_token}` },
     });
     if (!userRes.ok) {
+      const body = await userRes.text();
+      this.logger.error(
+        `카카오 사용자 조회 실패 (status=${userRes.status}): ${body}`,
+      );
       throw new UnauthorizedException('카카오 사용자 조회에 실패했습니다.');
     }
     const kakaoUser: any = await userRes.json();
