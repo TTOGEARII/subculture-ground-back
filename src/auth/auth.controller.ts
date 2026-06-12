@@ -48,6 +48,18 @@ export class AuthController {
     return { encrypted: encryptedResponse };
   }
 
+  @Post('kakao')
+  @HttpCode(HttpStatus.OK)
+  async kakao(@Body() encryptedDto: EncryptedDto) {
+    // 암호화된 { code, redirectUri } 복호화
+    const dto = decryptObject<{ code: string; redirectUri: string }>(
+      encryptedDto.encrypted,
+    );
+    const result = await this.authService.kakaoLogin(dto.code, dto.redirectUri);
+    const encryptedResponse = encryptObject(result);
+    return { encrypted: encryptedResponse };
+  }
+
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   getProfile(@CurrentUser() user: UserPayload) {
