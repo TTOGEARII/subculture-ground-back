@@ -240,7 +240,8 @@ export class KakaoService {
       `✅ 예매가 승인되었습니다!\n` +
       `공연: ${info.eventName}\n` +
       `티켓: ${info.ticketName} ${info.count}매\n` +
-      `입장 시 첨부된 QR 코드를 보여주세요. (코드: ${qrData})`;
+      `입장 시 첨부된 QR 코드를 보여주세요. (코드: ${qrData})\n` +
+      `QR을 크게 보려면 아래 'QR 크게 보기'를 눌러주세요.`;
 
     if (!token) {
       await this.writeLog({
@@ -267,7 +268,7 @@ export class KakaoService {
       },
       buttons: [
         {
-          title: '예매 내역 보기',
+          title: 'QR 크게 보기',
           link: { web_url: info.linkUrl, mobile_web_url: info.linkUrl },
         },
       ],
