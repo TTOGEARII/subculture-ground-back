@@ -29,6 +29,21 @@ export interface ReservationRow {
   buyerPhone: string | null;
 }
 
+// 마이페이지 내 예매 내역 (공연 정보 조인)
+export interface MyReservationRow {
+  idx: number;
+  eventId: number;
+  eventName: string;
+  eventDate: string;
+  eventTime: string;
+  ticketName: string | null;
+  ticketCnt: number;
+  ticketTotalPrice: number;
+  ticketStatus: TicketUserStatus;
+  ticketChkDt: Date | null;
+  createDt: Date | null;
+}
+
 @Injectable()
 export class TicketUserService {
   private readonly logger = new Logger(TicketUserService.name);
@@ -112,6 +127,40 @@ export class TicketUserService {
     }));
   }
 
+  /** 마이페이지 — 내 예매 내역 (공연 정보 조인). */
+  async findMyReservations(userIdx: number): Promise<MyReservationRow[]> {
+    const rows = await this.ticketUserRepository
+      .createQueryBuilder('tu')
+      .innerJoin(TicketInfo, 'ti', 'ti.idx = tu.ticketIdx')
+      .innerJoin(Performance, 'p', 'p.idx = ti.pm_idx')
+      .where('tu.user_idx = :userIdx', { userIdx })
+      .andWhere('tu.deleteDt IS NULL')
+      .orderBy('tu.idx', 'DESC')
+      .select([
+        'tu.idx AS idx',
+        'p.idx AS eventId',
+        'p.sb_performances_name AS eventName',
+        'p.sb_performances_date AS eventDate',
+        'p.sb_performances_time AS eventTime',
+        'ti.ticket_name AS ticketName',
+        'tu.ticket_cnt AS ticketCnt',
+        'tu.ticket_total_price AS ticketTotalPrice',
+        'tu.ticket_status AS ticketStatus',
+        'tu.ticket_chk_dt AS ticketChkDt',
+        'tu.create_dt AS createDt',
+      ])
+      .getRawMany<MyReservationRow>();
+
+    return rows.map((r) => ({
+      ...r,
+      idx: Number(r.idx),
+      eventId: Number(r.eventId),
+      ticketCnt: Number(r.ticketCnt),
+      ticketTotalPrice: Number(r.ticketTotalPrice),
+      ticketStatus: Number(r.ticketStatus) as TicketUserStatus,
+    }));
+  }
+
   /** 예매 상태 변경 (승인/취소/체크인). 호스트 소유 검증 + 상태별 타임스탬프. */
   async changeStatus(
     reservationIdx: number,
@@ -126,7 +175,34 @@ export class TicketUserService {
     row.updateDt = now;
     await this.ticketUserRepository.save(row);
     this.logger.log(`예매 상태 변경: idx=${reservationIdx}, status=${status}`);
+
+    // 승인(결제완료) 시 → 구매자에게 입장 QR 카카오톡 발송 (best-effort)
+    if (status === 1) {
+      this.notifyApprovalQr(row).catch((e) =>
+        this.logger.warn(`승인 QR 발송 중 오류: ${e?.message ?? e}`),
+      );
+    }
+
     return row;
+  }
+
+  /** 예매 승인 시 입장 QR 카카오톡 발송 (구매자가 카카오 회원일 때만). */
+  private async notifyApprovalQr(row: TicketUser): Promise<void> {
+    const ticketInfo = await this.dataSource
+      .getRepository(TicketInfo)
+      .findOne({ where: { idx: row.ticketIdx } });
+    if (!ticketInfo) return;
+    const performance = await this.performanceRepository.findOne({
+      where: { idx: ticketInfo.pmIdx },
+    });
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+    await this.kakaoService.sendApprovalQr(row.userIdx, {
+      eventName: performance?.performanceName ?? '공연',
+      ticketName: ticketInfo.ticketName ?? '티켓',
+      count: row.ticketCnt,
+      reservationIdx: row.idx,
+      linkUrl: `${frontendUrl}/my-page`,
+    });
   }
 
   async create(dto: CreateTicketUserDto): Promise<TicketUser> {

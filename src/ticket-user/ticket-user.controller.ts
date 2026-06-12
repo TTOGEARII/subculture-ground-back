@@ -66,6 +66,12 @@ export class TicketUserController {
     );
   }
 
+  // 마이페이지 — 내 예매 내역
+  @Get('my')
+  async myReservations(@CurrentUser() user: UserPayload) {
+    return this.ticketUserService.findMyReservations(user.idx);
+  }
+
   // 예매 상태 변경 (승인/취소/체크인). status: 0 대기 / 1 결제완료 / 2 체크완료 / 3 취소
   @Put(':idx/status')
   async changeStatus(
