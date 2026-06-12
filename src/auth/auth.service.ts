@@ -81,6 +81,13 @@ export class AuthService {
       throw new UnauthorizedException('차단된 계정입니다.');
     }
 
+    // 소셜 전용 계정(비밀번호 없음)은 비밀번호 로그인 불가
+    if (!user.sbPassword) {
+      throw new UnauthorizedException(
+        '소셜 로그인으로 가입된 계정입니다. 카카오 로그인을 이용해주세요.',
+      );
+    }
+
     // 비밀번호 확인
     const isPasswordValid = await this.memberService.validatePassword(
       password,
@@ -108,6 +115,78 @@ export class AuthService {
         birthDate: user.sbBirthDate,
         status: user.sbStatus,
         emailVerifiedAt: user.sbEmailVerifiedAt,
+      },
+    };
+  }
+
+  /**
+   * 카카오 OAuth 로그인.
+   * 프론트에서 받은 인가코드(code)로 토큰을 교환하고 프로필을 조회해
+   * 회원을 find-or-create 한 뒤 JWT를 발급한다.
+   */
+  async kakaoLogin(code: string, redirectUri: string) {
+    const restKey = process.env.KAKAO_REST_API_KEY;
+    if (!restKey) {
+      throw new UnauthorizedException(
+        '카카오 로그인이 설정되지 않았습니다. (KAKAO_REST_API_KEY)',
+      );
+    }
+
+    // 1) 인가코드 → 카카오 액세스 토큰
+    const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: restKey,
+        redirect_uri: redirectUri,
+        code,
+      }),
+    });
+    if (!tokenRes.ok) {
+      throw new UnauthorizedException('카카오 토큰 발급에 실패했습니다.');
+    }
+    const tokenJson: any = await tokenRes.json();
+
+    // 2) 액세스 토큰 → 사용자 프로필
+    const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+      headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+    });
+    if (!userRes.ok) {
+      throw new UnauthorizedException('카카오 사용자 조회에 실패했습니다.');
+    }
+    const kakaoUser: any = await userRes.json();
+
+    const account = kakaoUser.kakao_account ?? {};
+    const profile = {
+      provider: 'kakao',
+      providerUserId: String(kakaoUser.id),
+      email: (account.email as string) ?? null,
+      nickname:
+        (account.profile?.nickname as string) ??
+        (kakaoUser.properties?.nickname as string) ??
+        null,
+    };
+
+    // 3) 회원 find-or-create + 소셜 연결
+    const member = await this.memberService.findOrCreateBySocial(profile);
+    if (member.sbStatus === 0) {
+      throw new UnauthorizedException('차단된 계정입니다.');
+    }
+
+    // 4) JWT 발급
+    const payload = { sub: member.idx, email: member.sbEmail };
+    const accessToken = this.jwtService.sign(payload);
+    return {
+      accessToken,
+      user: {
+        idx: member.idx,
+        email: member.sbEmail,
+        name: member.sbName,
+        phone: member.sbPhone,
+        birthDate: member.sbBirthDate,
+        status: member.sbStatus,
+        emailVerifiedAt: member.sbEmailVerifiedAt,
       },
     };
   }
