@@ -195,4 +195,120 @@ export class KakaoService {
       refIdx: info.refIdx,
     });
   }
+
+  /**
+   * 예매 승인 시 입장 QR을 카카오톡으로 보낸다. (feed 템플릿 + QR 이미지)
+   * QR은 `SBG-RES-{reservationIdx}`를 인코딩 — QR 체크인 스캐너가 읽는 값과 동일.
+   */
+  async sendApprovalQr(
+    userIdx: number,
+    info: {
+      eventName: string;
+      ticketName: string;
+      count: number;
+      reservationIdx: number;
+      linkUrl: string;
+    },
+  ): Promise<void> {
+    const messageType = 'booking_approved';
+    const refType = 'ticket_user';
+    const refIdx = info.reservationIdx;
+
+    const social = await this.socialRepo.findOne({
+      where: { userIdx, provider: 'kakao' },
+    });
+    if (!social || !social.accessToken) {
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content: null,
+        status: 'skipped',
+        error: '카카오 토큰이 없는 사용자',
+        refType,
+        refIdx,
+      });
+      return;
+    }
+
+    const token = await this.getValidAccessToken(social);
+
+    const qrData = `SBG-RES-${info.reservationIdx}`;
+    const qrImageUrl =
+      `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=` +
+      encodeURIComponent(qrData);
+    const content =
+      `✅ 예매가 승인되었습니다!\n` +
+      `공연: ${info.eventName}\n` +
+      `티켓: ${info.ticketName} ${info.count}매\n` +
+      `입장 시 첨부된 QR 코드를 보여주세요. (코드: ${qrData})`;
+
+    if (!token) {
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content,
+        status: 'skipped',
+        error: '유효한 액세스 토큰을 확보하지 못함',
+        refType,
+        refIdx,
+      });
+      return;
+    }
+
+    const template = {
+      object_type: 'feed',
+      content: {
+        title: '🎫 입장 QR이 발급되었습니다',
+        description: content,
+        image_url: qrImageUrl,
+        image_width: 320,
+        image_height: 320,
+        link: { web_url: info.linkUrl, mobile_web_url: info.linkUrl },
+      },
+      buttons: [
+        {
+          title: '예매 내역 보기',
+          link: { web_url: info.linkUrl, mobile_web_url: info.linkUrl },
+        },
+      ],
+    };
+
+    const res = await fetch(
+      'https://kapi.kakao.com/v2/api/talk/memo/default/send',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({ template_object: JSON.stringify(template) }),
+      },
+    );
+
+    if (!res.ok) {
+      const body = await res.text();
+      this.logger.warn(`카카오 QR 발송 실패 (userIdx=${userIdx}): ${body}`);
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content,
+        status: 'fail',
+        error: body,
+        refType,
+        refIdx,
+      });
+      return;
+    }
+
+    this.logger.log(`카카오 입장 QR 발송 완료 (userIdx=${userIdx})`);
+    await this.writeLog({
+      userIdx,
+      messageType,
+      content,
+      status: 'success',
+      error: null,
+      refType,
+      refIdx,
+    });
+  }
 }
