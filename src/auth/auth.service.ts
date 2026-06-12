@@ -174,14 +174,24 @@ export class AuthService {
     const kakaoUser: any = await userRes.json();
 
     const account = kakaoUser.kakao_account ?? {};
+    const kakaoProfile = account.profile ?? {};
+    const expiresIn = Number(tokenJson.expires_in) || 0;
     const profile = {
       provider: 'kakao',
       providerUserId: String(kakaoUser.id),
       email: (account.email as string) ?? null,
       nickname:
-        (account.profile?.nickname as string) ??
+        (kakaoProfile.nickname as string) ??
         (kakaoUser.properties?.nickname as string) ??
         null,
+      profileImage:
+        (kakaoProfile.profile_image_url as string) ??
+        (kakaoUser.properties?.profile_image as string) ??
+        null,
+      // 카카오톡 메시지 발송용 토큰 저장 (talk_message 동의 시 사용)
+      accessToken: (tokenJson.access_token as string) ?? null,
+      refreshToken: (tokenJson.refresh_token as string) ?? null,
+      tokenExpiresAt: expiresIn ? new Date(Date.now() + expiresIn * 1000) : null,
     };
 
     // 3) 회원 find-or-create + 소셜 연결
