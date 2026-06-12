@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SocialAccount } from '../social-account/social-account.entity';
+import { KakaoMessageLog } from './kakao-message-log.entity';
 
 export interface BookingNotification {
   eventName: string;
@@ -9,6 +10,8 @@ export interface BookingNotification {
   count: number;
   totalPrice: number;
   linkUrl: string;
+  refType?: string; // 연관 엔티티 종류 (예: 'ticket_user')
+  refIdx?: number; // 연관 엔티티 idx
 }
 
 /**
@@ -22,7 +25,36 @@ export class KakaoService {
   constructor(
     @InjectRepository(SocialAccount)
     private socialRepo: Repository<SocialAccount>,
+    @InjectRepository(KakaoMessageLog)
+    private logRepo: Repository<KakaoMessageLog>,
   ) {}
+
+  /** 발송 로그 1행 기록 (성공/실패/스킵). 로그 실패가 본 흐름을 막지 않도록 try/catch. */
+  private async writeLog(entry: {
+    userIdx: number;
+    messageType: string;
+    content: string | null;
+    status: 'success' | 'fail' | 'skipped';
+    error: string | null;
+    refType?: string | null;
+    refIdx?: number | null;
+  }): Promise<void> {
+    try {
+      await this.logRepo.save(
+        this.logRepo.create({
+          userIdx: entry.userIdx,
+          messageType: entry.messageType,
+          content: entry.content,
+          status: entry.status,
+          error: entry.error,
+          refType: entry.refType ?? null,
+          refIdx: entry.refIdx ?? null,
+        }),
+      );
+    } catch (e) {
+      this.logger.warn(`카카오 알림 로그 기록 실패: ${e}`);
+    }
+  }
 
   /** 만료 임박 시 refresh_token으로 액세스 토큰을 갱신해 유효한 토큰을 반환한다. */
   private async getValidAccessToken(
@@ -75,27 +107,53 @@ export class KakaoService {
     userIdx: number,
     info: BookingNotification,
   ): Promise<void> {
+    const messageType = 'booking_confirm';
+
     const social = await this.socialRepo.findOne({
       where: { userIdx, provider: 'kakao' },
     });
-    if (!social || !social.accessToken) return;
+    if (!social || !social.accessToken) {
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content: null,
+        status: 'skipped',
+        error: '카카오 토큰이 없는 사용자 (카카오 회원 아님/미동의)',
+        refType: info.refType,
+        refIdx: info.refIdx,
+      });
+      return;
+    }
 
     const token = await this.getValidAccessToken(social);
-    if (!token) return;
 
     const priceText =
       info.totalPrice === 0
         ? '무료'
         : `${info.totalPrice.toLocaleString('ko-KR')}원`;
+    const content =
+      `🎫 [Subculture Ground] 예매가 접수되었습니다!\n\n` +
+      `공연: ${info.eventName}\n` +
+      `티켓: ${info.ticketName} ${info.count}매\n` +
+      `금액: ${priceText}\n\n` +
+      `입금 확인 후 예매가 승인됩니다.`;
+
+    if (!token) {
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content,
+        status: 'skipped',
+        error: '유효한 액세스 토큰을 확보하지 못함',
+        refType: info.refType,
+        refIdx: info.refIdx,
+      });
+      return;
+    }
 
     const template = {
       object_type: 'text',
-      text:
-        `🎫 [Subculture Ground] 예매가 접수되었습니다!\n\n` +
-        `공연: ${info.eventName}\n` +
-        `티켓: ${info.ticketName} ${info.count}매\n` +
-        `금액: ${priceText}\n\n` +
-        `입금 확인 후 예매가 승인됩니다.`,
+      text: content,
       link: { web_url: info.linkUrl, mobile_web_url: info.linkUrl },
     };
 
@@ -110,12 +168,31 @@ export class KakaoService {
         body: new URLSearchParams({ template_object: JSON.stringify(template) }),
       },
     );
+
     if (!res.ok) {
-      this.logger.warn(
-        `카카오 알림 발송 실패 (userIdx=${userIdx}): ${await res.text()}`,
-      );
+      const body = await res.text();
+      this.logger.warn(`카카오 알림 발송 실패 (userIdx=${userIdx}): ${body}`);
+      await this.writeLog({
+        userIdx,
+        messageType,
+        content,
+        status: 'fail',
+        error: body,
+        refType: info.refType,
+        refIdx: info.refIdx,
+      });
       return;
     }
+
     this.logger.log(`카카오 예매 알림 발송 완료 (userIdx=${userIdx})`);
+    await this.writeLog({
+      userIdx,
+      messageType,
+      content,
+      status: 'success',
+      error: null,
+      refType: info.refType,
+      refIdx: info.refIdx,
+    });
   }
 }

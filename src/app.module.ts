@@ -10,6 +10,7 @@ import { TicketInfo } from './ticket-info/ticket-info.entity';
 import { TicketUser } from './ticket-user/ticket-user.entity';
 import { MemberBankAccount } from './member-bank-account/member-bank-account.entity';
 import { SocialAccount } from './social-account/social-account.entity';
+import { KakaoMessageLog } from './kakao/kakao-message-log.entity';
 import { PerformanceModule } from './performance/performance.module';
 import { TicketInfoModule } from './ticket-info/ticket-info.module';
 import { TicketUserModule } from './ticket-user/ticket-user.module';
@@ -24,7 +25,7 @@ import { MemberBankAccountModule } from './member-bank-account/member-bank-accou
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'subculture_ground',
-      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount],
+      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog],
       synchronize: process.env.NODE_ENV !== 'production',
     }),
     MemberModule,

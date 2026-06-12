@@ -171,6 +171,7 @@ export class TicketUserService {
     // 예매 완료 → 카카오톡 알림 (best-effort: 실패해도 예매에는 영향 없음)
     this.notifyBooking(
       dto.userIdx,
+      saved.idx,
       dto.ticketIdx,
       cnt,
       dto.ticketTotalPrice ?? 0,
@@ -184,6 +185,7 @@ export class TicketUserService {
   /** 예매 완료 카카오톡 알림 발송 (구매자가 카카오 회원일 때만). */
   private async notifyBooking(
     userIdx: number,
+    reservationIdx: number,
     ticketIdx: number,
     count: number,
     totalPrice: number,
@@ -202,6 +204,8 @@ export class TicketUserService {
       count,
       totalPrice,
       linkUrl: `${frontendUrl}/my-page`,
+      refType: 'ticket_user',
+      refIdx: reservationIdx,
     });
   }
 
