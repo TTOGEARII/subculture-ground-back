@@ -32,6 +32,9 @@ COPY --chown=nestjs:nodejs package*.json ./
 COPY --chown=nestjs:nodejs entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
+# 업로드 디렉토리: 비루트(nestjs) 사용자가 쓸 수 있도록 미리 생성 + 소유권 부여
+RUN mkdir -p /app/uploads && chown -R nestjs:nodejs /app/uploads
+
 USER nestjs
 
 EXPOSE 3001
