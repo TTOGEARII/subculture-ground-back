@@ -15,9 +15,9 @@ import {
 import { TicketUserService } from './ticket-user.service';
 import { CreateTicketUserDto } from './dto/create-ticket-user.dto';
 import { UpdateTicketUserDto } from './dto/update-ticket-user.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { UserPayload } from '../auth/types/user-payload.interface';
+import { JwtAuthGuard } from '../../../shared/auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserPayload } from '../../../shared/auth/types/user-payload.interface';
 
 @Controller('ticket-user')
 @UseGuards(JwtAuthGuard) // 예매/조회 전부 인증 필요

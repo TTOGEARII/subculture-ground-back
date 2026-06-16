@@ -15,9 +15,9 @@ import {
 import { TicketInfoService } from './ticket-info.service';
 import { CreateTicketInfoDto } from './dto/create-ticket-info.dto';
 import { UpdateTicketInfoDto } from './dto/update-ticket-info.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { UserPayload } from '../auth/types/user-payload.interface';
+import { JwtAuthGuard } from '../../../shared/auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserPayload } from '../../../shared/auth/types/user-payload.interface';
 
 @Controller('ticket-info')
 export class TicketInfoController {

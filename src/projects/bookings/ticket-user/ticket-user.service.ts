@@ -10,7 +10,7 @@ import { DataSource, Repository, IsNull } from 'typeorm';
 import { TicketUser, TicketUserStatus } from './ticket-user.entity';
 import { TicketInfo } from '../ticket-info/ticket-info.entity';
 import { Performance } from '../performance/performance.entity';
-import { KakaoService } from '../kakao/kakao.service';
+import { KakaoService } from '../../../shared/kakao/kakao.service';
 import { CreateTicketUserDto } from './dto/create-ticket-user.dto';
 import { UpdateTicketUserDto } from './dto/update-ticket-user.dto';
 

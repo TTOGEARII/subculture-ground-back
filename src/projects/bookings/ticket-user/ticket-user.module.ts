@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TicketUser } from './ticket-user.entity';
 import { TicketInfo } from '../ticket-info/ticket-info.entity';
 import { Performance } from '../performance/performance.entity';
-import { KakaoModule } from '../kakao/kakao.module';
+import { KakaoModule } from '../../../shared/kakao/kakao.module';
 import { TicketUserService } from './ticket-user.service';
 import { TicketUserController } from './ticket-user.controller';
 
