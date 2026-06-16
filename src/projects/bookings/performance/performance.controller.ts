@@ -18,12 +18,12 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { PerformanceService } from './performance.service';
 import { CreatePerformanceDto } from './dto/create-performance.dto';
 import { UpdatePerformanceDto } from './dto/update-performance.dto';
-import { EncryptedDto } from '../auth/dto/encrypted.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { UserPayload } from '../auth/types/user-payload.interface';
-import { decryptObject, encryptObject } from '../common/utils/crypto.util';
-import { saveFile, generateUniqueFilename, getFileUrl } from '../common/utils/file.util';
+import { EncryptedDto } from '../../../shared/auth/dto/encrypted.dto';
+import { JwtAuthGuard } from '../../../shared/auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserPayload } from '../../../shared/auth/types/user-payload.interface';
+import { decryptObject, encryptObject } from '../../../common/utils/crypto.util';
+import { saveFile, generateUniqueFilename, getFileUrl } from '../../../common/utils/file.util';
 
 interface UploadedFile {
   fieldname: string;

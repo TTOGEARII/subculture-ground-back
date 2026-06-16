@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Performance } from './performance.entity';
-import { parseJsonArray } from '../common/utils/parse.util';
+import { parseJsonArray } from '../../../common/utils/parse.util';
 
 @Injectable()
 export class PerformanceService {

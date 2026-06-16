@@ -12,9 +12,9 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { EncryptedDto } from './dto/encrypted.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserPayload } from './types/user-payload.interface';
-import { decryptObject, encryptObject } from '../common/utils/crypto.util';
+import { decryptObject, encryptObject } from '../../common/utils/crypto.util';
 
 @Controller('auth')
 export class AuthController {

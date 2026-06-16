@@ -2,19 +2,19 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { MemberModule } from './member/member.module';
-import { AuthModule } from './auth/auth.module';
-import { Member } from './member/member.entity';
-import { Performance } from './performance/performance.entity';
-import { TicketInfo } from './ticket-info/ticket-info.entity';
-import { TicketUser } from './ticket-user/ticket-user.entity';
-import { MemberBankAccount } from './member-bank-account/member-bank-account.entity';
-import { SocialAccount } from './social-account/social-account.entity';
-import { KakaoMessageLog } from './kakao/kakao-message-log.entity';
-import { PerformanceModule } from './performance/performance.module';
-import { TicketInfoModule } from './ticket-info/ticket-info.module';
-import { TicketUserModule } from './ticket-user/ticket-user.module';
-import { MemberBankAccountModule } from './member-bank-account/member-bank-account.module';
+import { MemberModule } from './shared/member/member.module';
+import { AuthModule } from './shared/auth/auth.module';
+import { Member } from './shared/member/member.entity';
+import { Performance } from './projects/bookings/performance/performance.entity';
+import { TicketInfo } from './projects/bookings/ticket-info/ticket-info.entity';
+import { TicketUser } from './projects/bookings/ticket-user/ticket-user.entity';
+import { MemberBankAccount } from './projects/bookings/member-bank-account/member-bank-account.entity';
+import { SocialAccount } from './shared/social-account/social-account.entity';
+import { KakaoMessageLog } from './shared/kakao/kakao-message-log.entity';
+import { PerformanceModule } from './projects/bookings/performance/performance.module';
+import { TicketInfoModule } from './projects/bookings/ticket-info/ticket-info.module';
+import { TicketUserModule } from './projects/bookings/ticket-user/ticket-user.module';
+import { MemberBankAccountModule } from './projects/bookings/member-bank-account/member-bank-account.module';
 
 @Module({
   imports: [
