@@ -46,11 +46,12 @@ export function generateUniqueFilename(originalFilename: string): string {
 }
 
 /**
- * 파일 URL 생성
+ * 파일 URL 생성 — 호스트가 박힌 절대 URL을 저장하면 환경(로컬/프로덕션)에 따라
+ * 깨지므로 호스트 없는 상대경로(`/uploads/<file>`)만 반환한다.
+ * 표시할 때 프론트가 `apiBase`(NUXT_PUBLIC_API_BASE_URL)를 앞에 붙여 절대화한다.
  * @param filename 파일명
- * @returns 파일 URL
+ * @returns `/uploads/<filename>` 상대경로
  */
 export function getFileUrl(filename: string): string {
-  const baseUrl = process.env.BASE_URL || 'http://localhost:3001';
-  return `${baseUrl}/uploads/${filename}`;
+  return `/uploads/${filename}`;
 }
