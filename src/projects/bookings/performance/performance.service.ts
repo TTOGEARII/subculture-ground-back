@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Performance } from './performance.entity';
+import { TicketInfo } from '../ticket-info/ticket-info.entity';
 import { parseJsonArray } from '../../../common/utils/parse.util';
 
 @Injectable()
@@ -11,32 +12,70 @@ export class PerformanceService {
   constructor(
     @InjectRepository(Performance)
     private performanceRepository: Repository<Performance>,
+    @InjectRepository(TicketInfo)
+    private ticketInfoRepository: Repository<TicketInfo>,
   ) {}
+
+  /**
+   * 공연 응답 가공: performanceCategory를 배열로 변환하고,
+   * 티켓 최저가를 performancePrice로 붙인다.
+   * 가격은 sb_performances에 없고 sb_ticket_info(미삭제)의 최저가로 계산한다.
+   * 티켓을 IN 한 번으로 모아 N+1을 피한다.
+   */
+  private async withCategoryAndPrice(
+    performances: Performance[],
+  ): Promise<any[]> {
+    const priceMap = await this.minPriceByPerformance(
+      performances.map((p) => Number(p.idx)),
+    );
+    return performances.map((performance) => ({
+      ...performance,
+      performanceCategory: this.parseCategory(performance),
+      performancePrice: priceMap.get(Number(performance.idx)) ?? 0,
+    }));
+  }
+
+  /** pmIdx별 최저 티켓 가격 맵. 티켓 없는 공연은 맵에 없음(→ 호출부에서 0 처리). */
+  private async minPriceByPerformance(
+    performanceIdxs: number[],
+  ): Promise<Map<number, number>> {
+    const map = new Map<number, number>();
+    if (performanceIdxs.length === 0) return map;
+
+    const tickets = await this.ticketInfoRepository.find({
+      where: { pmIdx: In(performanceIdxs), delFlag: 0 },
+      select: ['pmIdx', 'ticketPrice'],
+    });
+    for (const t of tickets) {
+      const key = Number(t.pmIdx);
+      const prev = map.get(key);
+      if (prev === undefined || t.ticketPrice < prev) {
+        map.set(key, t.ticketPrice);
+      }
+    }
+    return map;
+  }
+
+  /** performanceCategory(JSON 문자열)를 배열로 파싱. 파싱 실패 시 경고 로그. */
+  private parseCategory(performance: Performance): string[] {
+    const categoryArray = parseJsonArray(performance.performanceCategory);
+    if (performance.performanceCategory && categoryArray.length === 0) {
+      this.logger.warn(`카테고리 JSON 파싱 실패 (idx: ${performance.idx}):`, {
+        원본값: performance.performanceCategory,
+      });
+    }
+    return categoryArray;
+  }
 
   async findAll(): Promise<any[]> {
     try {
       const performances = await this.performanceRepository.find({
         order: { performanceDate: 'ASC', performanceTime: 'ASC' },
       });
-      
-      // performanceCategory를 JSON 문자열에서 배열로 변환하여 응답
-      const transformedPerformances = performances.map((performance) => {
-        const categoryArray = parseJsonArray(performance.performanceCategory);
-        
-        // 파싱 실패 시 로그 출력 (빈 배열이 아닌 경우에만)
-        if (performance.performanceCategory && categoryArray.length === 0) {
-          this.logger.warn(`카테고리 JSON 파싱 실패 (idx: ${performance.idx}):`, {
-            원본값: performance.performanceCategory,
-          });
-        }
-        
-        // 응답 객체 생성 (performanceCategory를 배열로 변환)
-        return {
-          ...performance,
-          performanceCategory: categoryArray,
-        };
-      });
-      
+
+      const transformedPerformances =
+        await this.withCategoryAndPrice(performances);
+
       this.logger.log(`공연 목록 조회 성공: ${transformedPerformances.length}건`);
       return transformedPerformances;
     } catch (error) {
@@ -55,20 +94,8 @@ export class PerformanceService {
         return null;
       }
 
-      const categoryArray = parseJsonArray(performance.performanceCategory);
-
-      // 파싱 실패 시 로그 출력 (빈 배열이 아닌 경우에만)
-      if (performance.performanceCategory && categoryArray.length === 0) {
-        this.logger.warn(`카테고리 JSON 파싱 실패 (idx: ${performance.idx}):`, {
-          원본값: performance.performanceCategory,
-        });
-      }
-
-      // 응답 객체 생성 (performanceCategory를 배열로 변환)
-      return {
-        ...performance,
-        performanceCategory: categoryArray,
-      };
+      const [result] = await this.withCategoryAndPrice([performance]);
+      return result;
     } catch (error) {
       this.logger.error(`공연 조회 중 오류 발생 (idx: ${idx})`, error.stack);
       throw error;
@@ -81,25 +108,10 @@ export class PerformanceService {
         where: { createUserIdx: userIdx },
         order: { createdAt: 'DESC' },
       });
-      
-      // performanceCategory를 JSON 문자열에서 배열로 변환하여 응답
-      const transformedPerformances = performances.map((performance) => {
-        const categoryArray = parseJsonArray(performance.performanceCategory);
-        
-        // 파싱 실패 시 로그 출력 (빈 배열이 아닌 경우에만)
-        if (performance.performanceCategory && categoryArray.length === 0) {
-          this.logger.warn(`카테고리 JSON 파싱 실패 (idx: ${performance.idx}):`, {
-            원본값: performance.performanceCategory,
-          });
-        }
-        
-        // 응답 객체 생성 (performanceCategory를 배열로 변환)
-        return {
-          ...performance,
-          performanceCategory: categoryArray,
-        };
-      });
-      
+
+      const transformedPerformances =
+        await this.withCategoryAndPrice(performances);
+
       this.logger.log(`사용자 공연 목록 조회 성공 (userIdx: ${userIdx}): ${transformedPerformances.length}건`);
       return transformedPerformances;
     } catch (error) {
@@ -130,11 +142,8 @@ export class PerformanceService {
       const saved = await this.performanceRepository.save(performance);
       this.logger.log(`공연 생성 성공 (idx: ${saved.idx}, userIdx: ${userIdx})`);
 
-      const categoryArray = parseJsonArray(saved.performanceCategory);
-      return {
-        ...saved,
-        performanceCategory: categoryArray,
-      };
+      const [result] = await this.withCategoryAndPrice([saved]);
+      return result;
     } catch (error) {
       this.logger.error(`공연 생성 중 오류 발생 (userIdx: ${userIdx})`, error.stack);
       throw error;
@@ -192,11 +201,8 @@ export class PerformanceService {
       const saved = await this.performanceRepository.save(performance);
       this.logger.log(`공연 수정 성공 (idx: ${idx}, userIdx: ${userIdx})`);
 
-      const categoryArray = parseJsonArray(saved.performanceCategory);
-      return {
-        ...saved,
-        performanceCategory: categoryArray,
-      };
+      const [result] = await this.withCategoryAndPrice([saved]);
+      return result;
     } catch (error) {
       this.logger.error(`공연 수정 중 오류 발생 (idx: ${idx}, userIdx: ${userIdx})`, error.stack);
       throw error;
