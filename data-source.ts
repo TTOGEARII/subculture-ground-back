@@ -7,6 +7,7 @@ import { Performance } from './src/projects/bookings/performance/performance.ent
 import { TicketInfo } from './src/projects/bookings/ticket-info/ticket-info.entity';
 import { TicketUser } from './src/projects/bookings/ticket-user/ticket-user.entity';
 import { MemberBankAccount } from './src/projects/bookings/member-bank-account/member-bank-account.entity';
+import { NotionCredential } from './src/projects/notion-agent/notion-credential.entity';
 
 // .env 파일 로드 (Docker 환경에서는 환경 변수가 이미 설정되어 있을 수 있음)
 // 프로젝트 루트의 .env 파일 경로 (subculture-ground/.env)
@@ -26,7 +27,7 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'subculture_ground',
-  entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount],
+  entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, NotionCredential],
   migrations: process.env.NODE_ENV === 'production'
     ? ['dist/src/migrations/*.js']
     : ['src/migrations/*.ts'],
