@@ -63,6 +63,6 @@ export class NotionAgentController {
       role: t.role,
       content: t.content,
     }));
-    return this.agentService.chat(user.idx, history, dto.message);
+    return this.agentService.chat(user.idx, history, dto.message, dto.model);
   }
 }

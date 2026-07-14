@@ -21,8 +21,16 @@ export interface ChatResult {
   toolCalls: ToolCallTrace[];
 }
 
-const AGENT_MODEL = 'gemini-2.5-flash';
+/** 선택 가능한 대표 Gemini 모델 (키에서 동작 확인된 것만). 첫 항목이 기본값. */
+export const ALLOWED_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash'] as const;
+const DEFAULT_MODEL = ALLOWED_MODELS[0];
 const MAX_TOOL_ITERATIONS = 12;
+
+function resolveModel(model?: string): string {
+  return model && (ALLOWED_MODELS as readonly string[]).includes(model)
+    ? model
+    : DEFAULT_MODEL;
+}
 
 function buildSystemPrompt(): string {
   const now = new Date();
@@ -65,7 +73,13 @@ export class AgentService {
     private readonly bandRoom: BandRoomService,
   ) {}
 
-  async chat(userIdx: number, history: ChatTurn[], message: string): Promise<ChatResult> {
+  async chat(
+    userIdx: number,
+    history: ChatTurn[],
+    message: string,
+    model?: string,
+  ): Promise<ChatResult> {
+    const agentModel = resolveModel(model);
     const { notionToken, geminiKey } = await this.credentials.getDecryptedCredentials(userIdx);
     if (!geminiKey) {
       throw new BadRequestException('Gemini API 키가 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
@@ -110,7 +124,7 @@ export class AgentService {
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       // gemini-2.5-flash가 간헐적으로(주로 일시적 레이트리밋) 도구도 텍스트도 없는
       // 빈 응답을 내는 경우가 있어 백오프를 두고 최대 3회까지 재시도한다.
-      let response = await ai.models.generateContent({ model: AGENT_MODEL, contents, config });
+      let response = await ai.models.generateContent({ model: agentModel, contents, config });
       for (
         let attempt = 1;
         attempt < 3 &&
@@ -120,7 +134,7 @@ export class AgentService {
       ) {
         this.logger.warn(`빈 응답 재시도 (userIdx: ${userIdx}, ${attempt}/2)`);
         await new Promise((r) => setTimeout(r, 800 * attempt));
-        response = await ai.models.generateContent({ model: AGENT_MODEL, contents, config });
+        response = await ai.models.generateContent({ model: agentModel, contents, config });
       }
 
       const calls = response.functionCalls ?? [];

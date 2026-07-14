@@ -28,4 +28,8 @@ export class ChatRequestDto {
   @ValidateNested({ each: true })
   @Type(() => ChatTurnDto)
   history?: ChatTurnDto[];
+
+  @IsString()
+  @IsOptional()
+  model?: string;
 }
