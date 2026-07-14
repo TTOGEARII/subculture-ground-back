@@ -26,7 +26,7 @@
     "migration:run:prod": "typeorm migration:run -d dist/data-source.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.111.0",
+    "@google/genai": "^2.11.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",

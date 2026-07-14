@@ -6,12 +6,12 @@ import { encrypt, decrypt } from '../../common/utils/crypto.util';
 
 export interface CredentialStatus {
   hasNotionToken: boolean;
-  hasAnthropicKey: boolean;
+  hasGeminiKey: boolean;
   notionWorkspace: string | null;
 }
 
 /**
- * 회원별 노션 토큰 / Anthropic API 키 저장·조회.
+ * 회원별 노션 토큰 / Gemini API 키 저장·조회.
  * 토큰은 ENCRYPTION_KEY 로 암호화해 저장한다.
  * (토이 프로젝트 수준의 at-rest 암호화 — 프로덕션이라면 KMS 급이 필요)
  */
@@ -26,7 +26,7 @@ export class NotionAgentService {
 
   async saveCredentials(
     userIdx: number,
-    dto: { notionToken?: string; anthropicKey?: string },
+    dto: { notionToken?: string; geminiKey?: string },
   ): Promise<void> {
     let cred = await this.credentialRepository.findOne({ where: { userIdx } });
     if (!cred) {
@@ -35,8 +35,8 @@ export class NotionAgentService {
     if (dto.notionToken !== undefined) {
       cred.notionToken = dto.notionToken ? encrypt(dto.notionToken) : null;
     }
-    if (dto.anthropicKey !== undefined) {
-      cred.anthropicApiKey = dto.anthropicKey ? encrypt(dto.anthropicKey) : null;
+    if (dto.geminiKey !== undefined) {
+      cred.geminiApiKey = dto.geminiKey ? encrypt(dto.geminiKey) : null;
     }
     await this.credentialRepository.save(cred);
     this.logger.log(`자격증명 저장 (userIdx: ${userIdx})`);
@@ -45,17 +45,17 @@ export class NotionAgentService {
   /** 복호화된 토큰 반환. 없으면 null. */
   async getDecryptedCredentials(
     userIdx: number,
-  ): Promise<{ notionToken: string | null; anthropicKey: string | null }> {
+  ): Promise<{ notionToken: string | null; geminiKey: string | null }> {
     const cred = await this.credentialRepository.findOne({ where: { userIdx } });
     return {
       notionToken: cred?.notionToken ? decrypt(cred.notionToken) : null,
-      anthropicKey: cred?.anthropicApiKey ? decrypt(cred.anthropicApiKey) : null,
+      geminiKey: cred?.geminiApiKey ? decrypt(cred.geminiApiKey) : null,
     };
   }
 
   /** 설정 여부 + 노션 토큰 유효성(워크스페이스명) 확인 */
   async getStatus(userIdx: number): Promise<CredentialStatus> {
-    const { notionToken, anthropicKey } = await this.getDecryptedCredentials(userIdx);
+    const { notionToken, geminiKey } = await this.getDecryptedCredentials(userIdx);
     let notionWorkspace: string | null = null;
 
     if (notionToken) {
@@ -80,7 +80,7 @@ export class NotionAgentService {
 
     return {
       hasNotionToken: !!notionToken,
-      hasAnthropicKey: !!anthropicKey,
+      hasGeminiKey: !!geminiKey,
       notionWorkspace,
     };
   }

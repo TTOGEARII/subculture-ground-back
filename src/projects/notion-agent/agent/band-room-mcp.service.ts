@@ -7,7 +7,7 @@ import {
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import * as path from 'path';
-import type Anthropic from '@anthropic-ai/sdk';
+import type { AgentTool } from './agent-tool';
 
 /**
  * band-room MCP 서버(stdio) 클라이언트.
@@ -18,7 +18,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 export class BandRoomMcpService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(BandRoomMcpService.name);
   private client: Client | null = null;
-  private toolDefs: Anthropic.Tool[] = [];
+  private toolDefs: AgentTool[] = [];
 
   async onModuleInit(): Promise<void> {
     const serverPath =
@@ -37,7 +37,7 @@ export class BandRoomMcpService implements OnModuleInit, OnModuleDestroy {
       this.toolDefs = tools.map((t) => ({
         name: t.name,
         description: t.description ?? '',
-        input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+        inputSchema: t.inputSchema as Record<string, unknown>,
       }));
       this.client = client;
       this.logger.log(
@@ -56,8 +56,8 @@ export class BandRoomMcpService implements OnModuleInit, OnModuleDestroy {
     await this.client?.close().catch(() => undefined);
   }
 
-  /** Claude tools 배열에 합칠 도구 정의 (연결 실패 시 빈 배열) */
-  getToolDefinitions(): Anthropic.Tool[] {
+  /** LLM tools 배열에 합칠 도구 정의 (연결 실패 시 빈 배열) */
+  getToolDefinitions(): AgentTool[] {
     return this.toolDefs;
   }
 
