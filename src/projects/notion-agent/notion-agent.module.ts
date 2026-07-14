@@ -4,11 +4,11 @@ import { NotionCredential } from './notion-credential.entity';
 import { NotionAgentService } from './notion-agent.service';
 import { NotionAgentController } from './notion-agent.controller';
 import { AgentService } from './agent/agent.service';
-import { BandRoomMcpService } from './agent/band-room-mcp.service';
+import { BandRoomService } from './agent/band-room.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([NotionCredential])],
   controllers: [NotionAgentController],
-  providers: [NotionAgentService, AgentService, BandRoomMcpService],
+  providers: [NotionAgentService, AgentService, BandRoomService],
 })
 export class NotionAgentModule {}

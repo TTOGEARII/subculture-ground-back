@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import { NotionAgentService } from '../notion-agent.service';
-import { BandRoomMcpService } from './band-room-mcp.service';
+import { BandRoomService } from './band-room.service';
 import { NOTION_TOOL_DEFINITIONS, NotionToolExecutor } from './notion-tools';
 import type { AgentTool } from './agent-tool';
 
@@ -53,7 +53,8 @@ function buildSystemPrompt(): string {
 /**
  * Gemini 함수호출 에이전트 루프.
  * 사용자별 Gemini API 키로 클라이언트를 만들고,
- * 노션 도구 + band-room MCP 도구를 함수 선언으로 합쳐 functionCalls가 있는 동안 반복 실행한다.
+ * 노션 도구 + 합주실 도구를 함수 선언으로 합쳐 functionCalls가 있는 동안 반복 실행한다.
+ * thinking은 끈다(config) — 복잡한 도구 스키마에서 빈 응답을 유발하기 때문.
  */
 @Injectable()
 export class AgentService {
@@ -61,7 +62,7 @@ export class AgentService {
 
   constructor(
     private readonly credentials: NotionAgentService,
-    private readonly bandRoomMcp: BandRoomMcpService,
+    private readonly bandRoom: BandRoomService,
   ) {}
 
   async chat(userIdx: number, history: ChatTurn[], message: string): Promise<ChatResult> {
@@ -77,7 +78,7 @@ export class AgentService {
     const notionExecutor = new NotionToolExecutor(notionToken);
     const agentTools: AgentTool[] = [
       ...NOTION_TOOL_DEFINITIONS,
-      ...this.bandRoomMcp.getToolDefinitions(),
+      ...this.bandRoom.getToolDefinitions(),
     ];
     const geminiTools = [
       {
@@ -100,15 +101,27 @@ export class AgentService {
     const config = {
       tools: geminiTools,
       systemInstruction: buildSystemPrompt(),
+      // thinking을 끄면 함수호출이 훨씬 안정적이다. 켜두면 복잡한 도구 스키마에서
+      // gemini-2.5-flash가 thought만 내고 도구/텍스트 없는 빈 응답을 자주 낸다.
+      thinkingConfig: { thinkingBudget: 0 },
     };
     const trace: ToolCallTrace[] = [];
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-      const response = await ai.models.generateContent({
-        model: AGENT_MODEL,
-        contents,
-        config,
-      });
+      // gemini-2.5-flash가 간헐적으로(주로 일시적 레이트리밋) 도구도 텍스트도 없는
+      // 빈 응답을 내는 경우가 있어 백오프를 두고 최대 3회까지 재시도한다.
+      let response = await ai.models.generateContent({ model: AGENT_MODEL, contents, config });
+      for (
+        let attempt = 1;
+        attempt < 3 &&
+        (response.functionCalls?.length ?? 0) === 0 &&
+        !response.text?.trim();
+        attempt++
+      ) {
+        this.logger.warn(`빈 응답 재시도 (userIdx: ${userIdx}, ${attempt}/2)`);
+        await new Promise((r) => setTimeout(r, 800 * attempt));
+        response = await ai.models.generateContent({ model: AGENT_MODEL, contents, config });
+      }
 
       const calls = response.functionCalls ?? [];
       if (calls.length > 0) {
@@ -164,8 +177,8 @@ export class AgentService {
     if (notionExecutor.canHandle(name)) {
       return notionExecutor.execute(name, input);
     }
-    if (this.bandRoomMcp.canHandle(name)) {
-      return this.bandRoomMcp.execute(name, input);
+    if (this.bandRoom.canHandle(name)) {
+      return this.bandRoom.execute(name, input);
     }
     throw new Error(`알 수 없는 도구: ${name}`);
   }
