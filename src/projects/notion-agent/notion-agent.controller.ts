@@ -20,7 +20,7 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 
 interface CredentialsDto {
   notionToken?: string;
-  anthropicKey?: string;
+  geminiKey?: string;
 }
 
 /**

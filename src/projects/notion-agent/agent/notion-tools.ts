@@ -1,20 +1,20 @@
-import type Anthropic from '@anthropic-ai/sdk';
+import type { AgentTool } from './agent-tool';
 
 /**
- * 노션 REST API 도구 — Claude tool-use 정의 + 실행기.
+ * 노션 REST API 도구 — LLM 함수호출 정의 + 실행기.
  * 공식 SDK 대신 fetch 직접 호출 (엔드포인트 6개뿐이라 의존성을 아낀다).
  */
 
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
-export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
+export const NOTION_TOOL_DEFINITIONS: AgentTool[] = [
   {
     name: 'notion_search',
     description:
       '노션 워크스페이스에서 페이지/데이터베이스를 제목으로 검색한다. ' +
       '캘린더 DB를 찾을 때 먼저 이 도구로 검색하라. filter를 "database"로 주면 DB만 검색된다.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         query: { type: 'string', description: '검색어 (제목 부분 일치)' },
@@ -32,7 +32,7 @@ export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
     description:
       '데이터베이스의 스키마(속성 이름·타입)를 조회한다. ' +
       '페이지를 생성하기 전에 반드시 이 도구로 속성 구조(title/date 속성의 정확한 이름)를 확인하라.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         database_id: { type: 'string', description: '데이터베이스 ID' },
@@ -44,7 +44,7 @@ export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
     name: 'notion_query_database',
     description:
       '데이터베이스의 항목(페이지)들을 조회한다. filter/sorts는 Notion API 형식 JSON.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         database_id: { type: 'string' },
@@ -65,7 +65,7 @@ export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
       '예 (캘린더 등록): {"이름":{"title":[{"text":{"content":"합주 - 그라운드 합정"}}]},' +
       '"날짜":{"date":{"start":"2026-07-20T19:00:00+09:00","end":"2026-07-20T21:00:00+09:00"}}} ' +
       '— 속성 이름은 notion_get_database로 확인한 실제 이름을 써야 한다.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         parent_database_id: { type: 'string', description: '부모 데이터베이스 ID' },
@@ -82,7 +82,7 @@ export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: 'notion_update_page',
     description: '기존 페이지의 속성을 수정한다. 일정 변경/취소(archived) 등에 사용.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         page_id: { type: 'string' },
@@ -95,7 +95,7 @@ export const NOTION_TOOL_DEFINITIONS: Anthropic.Tool[] = [
   {
     name: 'notion_get_page',
     description: '페이지 1개의 속성을 조회한다.',
-    input_schema: {
+    inputSchema: {
       type: 'object',
       properties: {
         page_id: { type: 'string' },

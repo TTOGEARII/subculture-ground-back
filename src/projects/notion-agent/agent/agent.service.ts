@@ -1,8 +1,9 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import { NotionAgentService } from '../notion-agent.service';
 import { BandRoomMcpService } from './band-room-mcp.service';
 import { NOTION_TOOL_DEFINITIONS, NotionToolExecutor } from './notion-tools';
+import type { AgentTool } from './agent-tool';
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
@@ -20,7 +21,7 @@ export interface ChatResult {
   toolCalls: ToolCallTrace[];
 }
 
-const AGENT_MODEL = 'claude-opus-4-8';
+const AGENT_MODEL = 'gemini-2.5-flash';
 const MAX_TOOL_ITERATIONS = 12;
 
 function buildSystemPrompt(): string {
@@ -50,9 +51,9 @@ function buildSystemPrompt(): string {
 }
 
 /**
- * Claude tool-use 에이전트 루프.
- * 사용자별 Anthropic API 키로 클라이언트를 만들고,
- * 노션 도구 + band-room MCP 도구를 합쳐 stop_reason이 tool_use인 동안 반복 실행한다.
+ * Gemini 함수호출 에이전트 루프.
+ * 사용자별 Gemini API 키로 클라이언트를 만들고,
+ * 노션 도구 + band-room MCP 도구를 함수 선언으로 합쳐 functionCalls가 있는 동안 반복 실행한다.
  */
 @Injectable()
 export class AgentService {
@@ -64,74 +65,85 @@ export class AgentService {
   ) {}
 
   async chat(userIdx: number, history: ChatTurn[], message: string): Promise<ChatResult> {
-    const { notionToken, anthropicKey } = await this.credentials.getDecryptedCredentials(userIdx);
-    if (!anthropicKey) {
-      throw new BadRequestException('Anthropic API 키가 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
+    const { notionToken, geminiKey } = await this.credentials.getDecryptedCredentials(userIdx);
+    if (!geminiKey) {
+      throw new BadRequestException('Gemini API 키가 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
     }
     if (!notionToken) {
       throw new BadRequestException('노션 토큰이 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
     }
 
-    const client = new Anthropic({ apiKey: anthropicKey });
+    const ai = new GoogleGenAI({ apiKey: geminiKey });
     const notionExecutor = new NotionToolExecutor(notionToken);
-    const tools: Anthropic.Tool[] = [
+    const agentTools: AgentTool[] = [
       ...NOTION_TOOL_DEFINITIONS,
       ...this.bandRoomMcp.getToolDefinitions(),
     ];
-
-    const messages: Anthropic.MessageParam[] = [
-      ...history.map((t) => ({ role: t.role, content: t.content })),
-      { role: 'user' as const, content: message },
+    const geminiTools = [
+      {
+        functionDeclarations: agentTools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          parametersJsonSchema: t.inputSchema,
+        })),
+      },
     ];
 
+    const contents: Content[] = [
+      ...history.map((t) => ({
+        role: t.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: t.content }],
+      })),
+      { role: 'user', parts: [{ text: message }] },
+    ];
+
+    const config = {
+      tools: geminiTools,
+      systemInstruction: buildSystemPrompt(),
+    };
     const trace: ToolCallTrace[] = [];
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
-      const response = await client.messages.create({
+      const response = await ai.models.generateContent({
         model: AGENT_MODEL,
-        max_tokens: 16000,
-        thinking: { type: 'adaptive' },
-        system: buildSystemPrompt(),
-        tools,
-        messages,
+        contents,
+        config,
       });
 
-      if (response.stop_reason === 'tool_use') {
-        // thinking 블록 포함 전체 content를 그대로 되돌려준다 (수정 금지)
-        messages.push({ role: 'assistant', content: response.content });
+      const calls = response.functionCalls ?? [];
+      if (calls.length > 0) {
+        // 모델 턴(functionCall 파트 포함)을 그대로 히스토리에 추가
+        const modelContent = response.candidates?.[0]?.content;
+        if (modelContent) contents.push(modelContent);
 
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
-        for (const block of response.content) {
-          if (block.type !== 'tool_use') continue;
-          const input = block.input as Record<string, unknown>;
+        // 각 함수 호출을 실행하고 functionResponse 파트로 응답
+        const responseParts: Part[] = [];
+        for (const fc of calls) {
+          const input = (fc.args ?? {}) as Record<string, unknown>;
+          const name = fc.name ?? '';
           let resultText: string;
           let isError = false;
           try {
-            resultText = await this.executeTool(block.name, input, notionExecutor);
+            resultText = await this.executeTool(name, input, notionExecutor);
           } catch (error) {
             resultText = error instanceof Error ? error.message : String(error);
             isError = true;
           }
-          trace.push({ tool: block.name, input, ok: !isError });
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: block.id,
-            content: resultText,
-            is_error: isError || undefined,
+          trace.push({ tool: name, input, ok: !isError });
+          responseParts.push({
+            functionResponse: {
+              name,
+              response: isError ? { error: resultText } : { result: resultText },
+            },
           });
         }
-        messages.push({ role: 'user', content: toolResults });
+        contents.push({ role: 'user', parts: responseParts });
         continue;
       }
 
-      if (response.stop_reason === 'refusal') {
-        return { reply: '죄송해요, 이 요청은 처리할 수 없습니다.', toolCalls: trace };
-      }
-
-      const reply = response.content
-        .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-        .map((b) => b.text)
-        .join('');
+      const reply =
+        response.text?.trim() ||
+        '응답을 생성하지 못했어요. 질문을 조금 바꿔서 다시 시도해주세요.';
       this.logger.log(
         `에이전트 응답 (userIdx: ${userIdx}, 도구 ${trace.length}회, 반복 ${i + 1})`,
       );
