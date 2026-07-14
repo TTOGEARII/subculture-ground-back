@@ -183,6 +183,7 @@ const HOURLY_QUERY = `query hourlySchedule($scheduleParams: ScheduleParams) {
     bizItemSchedule {
       hourly {
         unitStartDateTime
+        unitStartTime
         unitBookingCount
         unitStock
         isSaleDay
@@ -200,7 +201,8 @@ interface HourlyData {
   schedule: {
     bizItemSchedule: {
       hourly: Array<{
-        unitStartDateTime: string; // "YYYY-MM-DDTHH:mm:ss"
+        unitStartDateTime: string; // UTC "YYYY-MM-DDTHH:mm:ss"
+        unitStartTime: string; // KST "YYYY-MM-DD HH:mm:ss" (표시·필터는 이걸 쓴다)
         unitBookingCount: number;
         unitStock: number;
         isSaleDay: boolean;
@@ -233,14 +235,18 @@ export async function fetchRoomAvailability(
     },
   });
 
+  // unitStartDateTime은 UTC라 KST 날짜/시각과 9시간 어긋난다.
+  // unitStartTime(KST, "YYYY-MM-DD HH:mm:ss")으로 필터·표시한다.
+  const kstOf = (h: { unitStartTime?: string; unitStartDateTime: string }) =>
+    h.unitStartTime || h.unitStartDateTime;
   const hourly = data.schedule.bizItemSchedule.hourly.filter((h) =>
-    h.unitStartDateTime.startsWith(date),
+    kstOf(h).startsWith(date),
   );
   const slots: HourSlot[] = hourly.map((h) => {
     const available =
       h.isSaleDay && h.isUnitBusinessDay && h.unitStock - h.unitBookingCount > 0;
     return {
-      time: h.unitStartDateTime.slice(11, 16),
+      time: kstOf(h).slice(11, 16),
       available,
       price: h.prices?.[0]?.price ?? null,
     };
