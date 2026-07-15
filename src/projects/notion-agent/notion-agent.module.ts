@@ -7,10 +7,19 @@ import { NotionAgentController } from './notion-agent.controller';
 import { AgentService } from './agent/agent.service';
 import { BandRoomService } from './agent/band-room.service';
 import { BandStudioService } from './agent/band-studio.service';
+import { SheetMusicService } from './agent/sheet-music.service';
+import { BrowserService } from './agent/browser.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([NotionCredential, BandStudio])],
   controllers: [NotionAgentController],
-  providers: [NotionAgentService, AgentService, BandRoomService, BandStudioService],
+  providers: [
+    NotionAgentService,
+    AgentService,
+    BandRoomService,
+    BandStudioService,
+    SheetMusicService,
+    BrowserService,
+  ],
 })
 export class NotionAgentModule {}

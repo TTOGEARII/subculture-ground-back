@@ -22,6 +22,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+# 악보 검색(ultimate-guitar)이 Cloudflare 챌린지를 통과하려면 실제 브라우저가 필요하다.
+# alpine musl에선 playwright 번들 chromium이 안 돌아가므로 apk chromium을 쓰고
+# playwright-core에 그 경로를 넘긴다(PLAYWRIGHT_CHROMIUM_PATH). chromium이 없으면
+# 악보 도구는 UG를 건너뛰고 나머지 소스 + 링크아웃으로 폴백한다.
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+ENV PLAYWRIGHT_CHROMIUM_PATH=/usr/bin/chromium-browser
+
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
