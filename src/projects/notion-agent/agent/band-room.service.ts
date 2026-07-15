@@ -35,14 +35,25 @@ export class BandRoomService {
       name: 'get_available_slots',
       description:
         '특정 합주실의 특정 날짜 빈 시간을 룸별로 실시간 조회한다(네이버 예약 데이터). ' +
-        'studio는 합주실 이름 또는 businessId, date는 YYYY-MM-DD. ' +
-        '사용자가 "언제 비어있어?", "예약 가능한 시간" 등을 물으면 호출. ' +
-        '응답의 availableHours가 예약 가능한 시작 시각 목록이며, reservationUrl로 실제 예약할 수 있다.',
+        'studio는 합주실 이름 또는 businessId, date는 YYYY-MM-DD(하루만). ' +
+        '⚠️ 여러 날(예: "이번 주", "7월 마지막주")을 물으면 날짜마다 각각 호출한다. ' +
+        '사용자가 "8시부터 10시까지 되는 방" 처럼 **시간대(구간)**를 지정하면 start_time·end_time을 반드시 넣어라. ' +
+        '그러면 응답의 각 룸에 bookableForRequestedTime(그 구간 전체가 연속으로 비어 예약 가능한지)이 담긴다. ' +
+        '합주실은 보통 최소 연속 시간(예: 2시간) 제약이 있어, 시작 시각 하나만 비어도 구간 예약은 불가할 수 있으니 ' +
+        '구간 질문엔 반드시 bookableForRequestedTime로 판단한다. availableHours는 그 날 예약 가능한 개별 시작 시각 목록이다.',
       inputSchema: {
         type: 'object',
         properties: {
           studio: { type: 'string', description: '합주실 이름(부분 일치 가능) 또는 businessId' },
-          date: { type: 'string', description: '조회 날짜 (YYYY-MM-DD)' },
+          date: { type: 'string', description: '조회 날짜 (YYYY-MM-DD, 하루)' },
+          start_time: {
+            type: 'string',
+            description: '구간 시작 시각 "HH:mm" (예: "20:00"). 시간대 예약 질문일 때만',
+          },
+          end_time: {
+            type: 'string',
+            description: '구간 종료 시각 "HH:mm" (예: "22:00", 종료는 미포함). start_time과 함께',
+          },
         },
         required: ['studio', 'date'],
       },
@@ -95,6 +106,12 @@ export class BandRoomService {
           input.studio as string,
           input.date as string,
         );
+        // 구간(연속 시간) 예약 가능 여부: start~end 사이 매 시각이 모두 비어야 예약 가능.
+        // 합주실은 최소 연속 시간 제약이 있어 개별 시각만으로 판단하면 과다 집계된다.
+        const startTime = typeof input.start_time === 'string' ? input.start_time : null;
+        const endTime = typeof input.end_time === 'string' ? input.end_time : null;
+        const requiredHours = startTime && endTime ? hoursInRange(startTime, endTime) : null;
+
         return JSON.stringify({
           studio: {
             name: result.studio.name,
@@ -102,10 +119,14 @@ export class BandRoomService {
             address: result.studio.address,
           },
           date: result.date,
+          requestedTime: requiredHours ? `${startTime}~${endTime}` : null,
           rooms: result.rooms.map((r) => ({
             room: r.roomName,
             price: r.price != null ? `${r.price.toLocaleString()}원/시간` : null,
             availableHours: r.availableHours,
+            bookableForRequestedTime: requiredHours
+              ? requiredHours.every((h) => r.availableHours.includes(h))
+              : null,
           })),
           reservationUrl: result.reservationUrl,
         });
@@ -126,4 +147,15 @@ export class BandRoomService {
         throw new Error(`알 수 없는 합주실 도구: ${toolName}`);
     }
   }
+}
+
+/** "20:00"~"22:00" → ["20:00","21:00"] (종료 시각 미포함). 시작이 예약을 점유하는 매 시각. */
+function hoursInRange(start: string, end: string): string[] {
+  const toH = (t: string) => parseInt(t.slice(0, 2), 10);
+  const s = toH(start);
+  const e = toH(end);
+  if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return [];
+  const out: string[] = [];
+  for (let h = s; h < e; h++) out.push(`${String(h).padStart(2, '0')}:00`);
+  return out;
 }
