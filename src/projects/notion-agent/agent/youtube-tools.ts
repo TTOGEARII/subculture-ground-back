@@ -64,6 +64,8 @@ export class YoutubeToolExecutor {
     const url = new URL('https://www.googleapis.com/youtube/v3/search');
     url.searchParams.set('part', 'snippet');
     url.searchParams.set('type', 'video');
+    // 임베드 불가 영상(공식 뮤비 등)은 화면에서 "재생할 수 없음"으로 떠 UX를 해치므로 제외한다.
+    url.searchParams.set('videoEmbeddable', 'true');
     url.searchParams.set('maxResults', String(max));
     url.searchParams.set('q', q);
     url.searchParams.set('key', this.apiKey);
