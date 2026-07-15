@@ -92,7 +92,9 @@ const HOURLY_QUERY = `query hourlySchedule($scheduleParams: ScheduleParams) {
         unitStartTime
         unitBookingCount
         unitStock
+        occupiedBookingCount
         isSaleDay
+        isUnitSaleDay
         isUnitBusinessDay
         prices { price __typename }
         __typename
@@ -111,7 +113,9 @@ interface HourlyData {
         unitStartTime: string; // KST "YYYY-MM-DD HH:mm:ss" (표시·필터는 이걸 쓴다)
         unitBookingCount: number;
         unitStock: number;
+        occupiedBookingCount?: number; // 점유(선점/보류)된 수 — 예약수와 별개로 재고를 깎는다
         isSaleDay: boolean;
+        isUnitSaleDay: boolean; // 그 시각이 판매중인지. false면 재고가 있어도 마감(핵심)
         isUnitBusinessDay: boolean;
         prices?: Array<{ price: number }>;
       }>;
@@ -121,7 +125,12 @@ interface HourlyData {
 
 /**
  * 한 룸(bizItemId)의 특정 날짜 시간대별 예약 현황.
- * 가능 판정: 판매일 && 영업일 && (재고 - 예약수 > 0). Playwright로 검증한 로직.
+ *
+ * 가능 판정: 판매일 && **그 시각 판매중(isUnitSaleDay)** && 영업시각 &&
+ *            (재고 - 예약수 - 점유수 > 0).
+ * ⚠️ isUnitSaleDay를 반드시 본다 — 재고가 남아도(unitStock>unitBookingCount) 그 시각이
+ *    판매중지면 네이버는 "마감"으로 뜬다. 이걸 빼면 마감 슬롯을 "가능"으로 오판한다.
+ *    (네이버 예약 페이지가 실제 쓰는 판정 필드를 Playwright로 캡처해 확정.)
  */
 export async function fetchRoomAvailability(
   businessId: string,
@@ -147,7 +156,11 @@ export async function fetchRoomAvailability(
     h.unitStartTime || h.unitStartDateTime;
   const hourly = data.schedule.bizItemSchedule.hourly.filter((h) => kstOf(h).startsWith(date));
   const slots: HourSlot[] = hourly.map((h) => {
-    const available = h.isSaleDay && h.isUnitBusinessDay && h.unitStock - h.unitBookingCount > 0;
+    const available =
+      h.isSaleDay &&
+      h.isUnitSaleDay &&
+      h.isUnitBusinessDay &&
+      h.unitStock - h.unitBookingCount - (h.occupiedBookingCount ?? 0) > 0;
     return {
       time: kstOf(h).slice(11, 16),
       available,
