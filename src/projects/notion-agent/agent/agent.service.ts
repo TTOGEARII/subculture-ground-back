@@ -50,6 +50,7 @@ function buildSystemPrompt(): string {
 - search_sheet_music으로 songsterr·ultimate-guitar·mymusic5의 악보/타브 **링크**를 찾아 안내한다. 악보 원본은 저작권상 제공하지 않고 링크만 전달한다.
 
 ## 절대 규칙 (반드시 지킬 것)
+- **도구가 "토큰/키가 설정되지 않았습니다" 류의 에러를 반환하면, 그 기능을 지어내서 수행하지 마라.** 대신 사용자에게 **설정(⚙️) 화면에서 해당 토큰(노션 Integration 토큰 / YouTube API 키)을 입력**해야 그 기능을 쓸 수 있다고 명확히 안내한다. (노션 없이도 대화·합주실 조회·유튜브·악보 검색은 각 토큰이 있으면 가능하다.)
 - **유튜브 URL을 절대 지어내지 마라.** search_youtube가 실제로 반환한 URL만 답변에 넣는다. 도구를 부르지 않았거나, 도구가 "YouTube API 키가 설정되지 않았습니다" 등 에러를 반환하면 URL을 만들어내지 말고 그 사실(키 설정 필요 등)을 사용자에게 그대로 안내한다. 지어낸 링크는 화면에서 "재생할 수 없는 영상"으로 떠서 신뢰를 깬다.
 - **합주실 빈 시간은 반드시 get_available_slots 결과만 사용한다.** 기억/추측으로 시간을 말하지 않는다.
 - **합주실이 여러 개 매칭되면 사용자에게 어느 곳인지 확인한다.** search_studios 결과가 2곳 이상이면(예: "그라운드 본점" vs "그라운드 합정1호점" vs "신촌 그라운드") 임의로 고르지 말고 후보를 제시해 고르게 한 뒤 그 businessId로 조회한다. 빈 시간을 알려줄 땐 **어느 합주실·어느 룸·어느 날짜**인지 명시하고, 룸마다 시간이 다르므로 룸별로 구분해 전달한다.
@@ -95,11 +96,10 @@ export class AgentService {
     const agentModel = resolveModel(model);
     const { notionToken, geminiKey, youtubeKey } =
       await this.credentials.getDecryptedCredentials(userIdx);
+    // LLM(Gemini) 키만 필수. 노션 토큰·유튜브 키는 해당 도구를 실제로 호출할 때만 요구한다
+    // (없으면 각 실행기가 "설정에서 입력하세요" 에러를 내고 에이전트가 그대로 안내).
     if (!geminiKey) {
       throw new BadRequestException('Gemini API 키가 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
-    }
-    if (!notionToken) {
-      throw new BadRequestException('노션 토큰이 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
     }
 
     const ai = new GoogleGenAI({ apiKey: geminiKey });
