@@ -57,6 +57,13 @@ function buildSystemPrompt(): string {
 - **시간대(구간) 질문엔 연속 가능 여부로 판단한다.** "8시부터 10시까지 되는 방"처럼 구간을 물으면 get_available_slots에 start_time·end_time을 넣고, **각 룸의 bookableForRequestedTime이 true인 방만 "예약 가능"이라고 답한다.** availableHours에 시작 시각이 있어도 그 구간이 연속으로 비어있지 않으면(예: 20시는 비었지만 21시는 예약됨) 2시간 예약은 불가하므로 "가능"이라 하지 마라.
 - **여러 날짜를 물으면 날짜마다 get_available_slots를 각각 호출**하고(예: "7월 마지막주"면 그 주의 각 날짜를), 날짜별로 결과가 다르므로 "어느 날 어느 룸이 가능"인지 날짜별로 구분해 답한다. 한 날짜만 보고 "전부 가능"이라 일반화하지 마라.
 
+## 곡 검색 언어 규칙 (search_youtube / search_sheet_music) — 반드시 지킬 것
+- 곡을 검색하기 전에 **먼저 그 곡의 정확한 정보(원제·아티스트·원곡 언어)를 확인한다.** 사용자가 번역·한글 제목으로 말해도, **웹 검색(내장 Google 검색)으로 실제 곡을 특정한 뒤 검증된 원제**로 검색한다. **내가 입력받은 제목을 추측으로 번역하지 마라** — 조금이라도 불확실하면 반드시 웹 검색으로 원제를 확인한 다음 검색한다.
+  - 예: "fhána 푸른 하늘의 랩소디" → 웹 검색으로 확인 → 일본곡 원제 "青空のラプソディ" → 이 원제로 search_youtube / search_sheet_music 호출.
+- 확인한 **원곡 언어**로 검색어를 만든다: 일본곡→일본어, 영어곡→영어, 한국곡→한국어.
+- 악기 커버는 **instrument(악기명)도 원곡 언어로** 번역한다. 예) 일본곡: 드럼→ドラム, 기타→ギター, 베이스→ベース, 피아노→ピアノ, 보컬→ボーカル / 영어곡: drums, guitar, bass, piano, vocals / 한국곡: 그대로.
+- 답변에 **어떤 원제로 검색했는지** 밝힌다 (예: "원제 '青空のラプソディ'(fhána)로 검색했어요").
+
 ## 합주 일정을 노션 캘린더 DB에 등록하는 절차
 1. notion_search(filter: "database")로 캘린더/일정 DB를 찾는다. 사용자가 DB 이름을 말했으면 그 이름으로, 아니면 "캘린더", "일정" 등으로 검색하고 후보가 여럿이면 사용자에게 확인한다.
 2. notion_get_database로 스키마를 확인해 title 속성과 date 속성의 **정확한 이름**을 파악한다.
@@ -112,6 +119,9 @@ export class AgentService {
       ...this.sheetMusic.getToolDefinitions(),
     ];
     const geminiTools = [
+      // Gemini 내장 Google 검색 — 곡의 정확한 원제/아티스트를 웹에서 확인한 뒤 원어로 검색하기 위함.
+      // 함수도구와 공존하려면 toolConfig.includeServerSideToolInvocations 가 필요하다(아래 config).
+      { googleSearch: {} },
       {
         functionDeclarations: agentTools.map((t) => ({
           name: t.name,
@@ -135,6 +145,8 @@ export class AgentService {
       // thinking을 끄면 함수호출이 훨씬 안정적이다. 켜두면 복잡한 도구 스키마에서
       // gemini-2.5-flash가 thought만 내고 도구/텍스트 없는 빈 응답을 자주 낸다.
       thinkingConfig: { thinkingBudget: 0 },
+      // 내장 Google 검색(서버측)과 함수도구를 함께 쓰기 위해 필요.
+      toolConfig: { includeServerSideToolInvocations: true },
       // 사용자가 취소하면(클라이언트 연결 끊김) 진행 중인 Gemini 호출도 중단한다.
       abortSignal: signal,
     };
