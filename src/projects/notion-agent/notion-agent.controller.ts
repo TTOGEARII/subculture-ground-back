@@ -7,8 +7,10 @@ import {
   HttpStatus,
   Post,
   Put,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../../shared/auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserPayload } from '../../shared/auth/types/user-payload.interface';
@@ -59,11 +61,21 @@ export class NotionAgentController {
   }
 
   @Post('chat')
-  async chat(@Body() dto: ChatRequestDto, @CurrentUser() user: UserPayload) {
+  async chat(
+    @Body() dto: ChatRequestDto,
+    @CurrentUser() user: UserPayload,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const history: ChatTurn[] = (dto.history ?? []).map((t) => ({
       role: t.role,
       content: t.content,
     }));
-    return this.agentService.chat(user.idx, history, dto.message, dto.model);
+    // 사용자가 검색 도중 취소하면 연결이 끊긴다 → 에이전트 루프도 멈춰 Gemini 호출 낭비를 막는다.
+    // 클라이언트 끊김은 응답(res)의 'close'로 감지한다(정상 완료면 writableEnded=true라 제외).
+    const abort = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) abort.abort();
+    });
+    return this.agentService.chat(user.idx, history, dto.message, dto.model, abort.signal);
   }
 }
