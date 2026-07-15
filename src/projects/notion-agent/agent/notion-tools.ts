@@ -43,16 +43,17 @@ export const NOTION_TOOL_DEFINITIONS: AgentTool[] = [
   {
     name: 'notion_query_database',
     description:
-      '데이터베이스의 항목(페이지)들을 조회한다. filter/sorts는 Notion API 형식 JSON.',
+      '데이터베이스의 항목(페이지)들을 조회한다. filter/sorts는 Notion API 형식의 **JSON 문자열**로 준다.',
     inputSchema: {
       type: 'object',
       properties: {
         database_id: { type: 'string' },
         filter: {
-          type: 'object',
-          description: 'Notion API filter 객체 (예: {"property":"날짜","date":{"on_or_after":"2026-07-14"}})',
+          type: 'string',
+          description:
+            'Notion filter 객체의 JSON 문자열 (예: {"property":"날짜","date":{"on_or_after":"2026-07-14"}})',
         },
-        sorts: { type: 'array', items: { type: 'object' } },
+        sorts: { type: 'string', description: 'Notion sorts 배열의 JSON 문자열' },
         page_size: { type: 'number', description: '최대 결과 수 (기본 20)' },
       },
       required: ['database_id'],
@@ -61,32 +62,39 @@ export const NOTION_TOOL_DEFINITIONS: AgentTool[] = [
   {
     name: 'notion_create_page',
     description:
-      '데이터베이스에 새 페이지(항목)를 생성한다. properties는 Notion API 형식. ' +
-      '예 (캘린더 등록): {"이름":{"title":[{"text":{"content":"합주 - 그라운드 합정"}}]},' +
-      '"날짜":{"date":{"start":"2026-07-20T19:00:00+09:00","end":"2026-07-20T21:00:00+09:00"}}} ' +
-      '— 속성 이름은 notion_get_database로 확인한 실제 이름을 써야 한다.',
+      '데이터베이스에 새 페이지(항목)를 생성한다. properties는 Notion API 형식을 **JSON 문자열**로 준다(객체 아님). ' +
+      '속성 이름은 notion_get_database로 확인한 실제 이름을 그대로 쓴다. ' +
+      '예(캘린더 등록): properties = ' +
+      '"{\\"이름\\":{\\"title\\":[{\\"text\\":{\\"content\\":\\"합주 - 그라운드 합정 S룸\\"}}]},' +
+      '\\"날짜\\":{\\"date\\":{\\"start\\":\\"2026-07-25T20:00:00+09:00\\",\\"end\\":\\"2026-07-25T22:00:00+09:00\\"}}}"',
     inputSchema: {
       type: 'object',
       properties: {
         parent_database_id: { type: 'string', description: '부모 데이터베이스 ID' },
-        properties: { type: 'object', description: 'Notion API 형식 properties 객체' },
-        children: {
-          type: 'array',
-          items: { type: 'object' },
-          description: '(선택) 페이지 본문 블록들 (Notion block 형식)',
+        properties: {
+          type: 'string',
+          description:
+            'Notion properties를 담은 **JSON 문자열**. title 속성은 {"title":[{"text":{"content":"..."}}]}, ' +
+            'date 속성은 {"date":{"start":"...","end":"..."}}, rich_text는 {"rich_text":[{"text":{"content":"..."}}]}, ' +
+            'select는 {"select":{"name":"..."}}, status는 {"status":{"name":"..."}}, multi_select는 {"multi_select":[{"name":"..."}]}, ' +
+            'number는 {"number":123}, checkbox는 {"checkbox":true} 형식.',
         },
+        children: { type: 'string', description: '(선택) 페이지 본문 블록 배열의 JSON 문자열' },
       },
       required: ['parent_database_id', 'properties'],
     },
   },
   {
     name: 'notion_update_page',
-    description: '기존 페이지의 속성을 수정한다. 일정 변경/취소(archived) 등에 사용.',
+    description: '기존 페이지의 속성을 수정한다. properties는 JSON 문자열. 일정 변경/취소(archived) 등에 사용.',
     inputSchema: {
       type: 'object',
       properties: {
         page_id: { type: 'string' },
-        properties: { type: 'object', description: 'Notion API 형식 properties 객체' },
+        properties: {
+          type: 'string',
+          description: 'Notion properties를 담은 JSON 문자열 (notion_create_page와 동일 형식)',
+        },
         archived: { type: 'boolean', description: 'true면 페이지 삭제(보관)' },
       },
       required: ['page_id'],
@@ -121,6 +129,20 @@ export class NotionToolExecutor {
 
   canHandle(toolName: string): boolean {
     return toolName.startsWith('notion_');
+  }
+
+  /** JSON 문자열 인자를 파싱한다(이미 객체면 그대로 — 하위호환). 실패 시 명확한 에러. */
+  private parseJson(name: string, v: unknown): unknown {
+    if (v === undefined || v === null) return undefined;
+    if (typeof v === 'object') return v;
+    if (typeof v !== 'string') throw new Error(`${name}은(는) JSON 문자열이어야 합니다.`);
+    const s = v.trim();
+    if (!s) return undefined;
+    try {
+      return JSON.parse(s);
+    } catch {
+      throw new Error(`${name} JSON 파싱 실패 — 올바른 JSON 문자열로 주세요. 받은 값: ${s.slice(0, 120)}`);
+    }
   }
 
   private async call(method: string, path: string, body?: unknown): Promise<string> {
@@ -174,21 +196,27 @@ export class NotionToolExecutor {
         const body: Record<string, unknown> = {
           page_size: input.page_size ?? 20,
         };
-        if (input.filter) body.filter = input.filter;
-        if (input.sorts) body.sorts = input.sorts;
+        const filter = this.parseJson('filter', input.filter);
+        const sorts = this.parseJson('sorts', input.sorts);
+        if (filter) body.filter = filter;
+        if (sorts) body.sorts = sorts;
         return this.call('POST', `/databases/${input.database_id}/query`, body);
       }
       case 'notion_create_page': {
+        const properties = this.parseJson('properties', input.properties);
+        if (!properties) throw new Error('properties(JSON 문자열)가 필요합니다.');
         const body: Record<string, unknown> = {
           parent: { database_id: input.parent_database_id },
-          properties: input.properties,
+          properties,
         };
-        if (input.children) body.children = input.children;
+        const children = this.parseJson('children', input.children);
+        if (children) body.children = children;
         return this.call('POST', '/pages', body);
       }
       case 'notion_update_page': {
         const body: Record<string, unknown> = {};
-        if (input.properties) body.properties = input.properties;
+        const properties = this.parseJson('properties', input.properties);
+        if (properties) body.properties = properties;
         if (input.archived !== undefined) body.archived = input.archived;
         return this.call('PATCH', `/pages/${input.page_id}`, body);
       }

@@ -26,7 +26,7 @@ export interface ChatResult {
 /** 선택 가능한 대표 Gemini 모델 (키에서 동작 확인된 것만). 첫 항목이 기본값. */
 export const ALLOWED_MODELS = ['gemini-3-flash-preview', 'gemini-2.5-flash'] as const;
 const DEFAULT_MODEL = ALLOWED_MODELS[0];
-const MAX_TOOL_ITERATIONS = 12;
+const MAX_TOOL_ITERATIONS = 20;
 
 function resolveModel(model?: string): string {
   return model && (ALLOWED_MODELS as readonly string[]).includes(model)
@@ -155,6 +155,9 @@ export class AgentService {
       this.logger.log(`에이전트 취소됨 (userIdx: ${userIdx}, 도구 ${trace.length}회)`);
       return { reply: '요청을 취소했어요.', toolCalls: trace };
     };
+    // 같은 도구가 형식 오류로 반복 실패하면(모델이 스스로 못 고치는 중) 루프를 낭비하지 않고 중단한다.
+    let consecutiveFails = 0;
+    let lastError = '';
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
       if (signal?.aborted) return canceled();
@@ -200,6 +203,12 @@ export class AgentService {
             resultText = error instanceof Error ? error.message : String(error);
             isError = true;
           }
+          if (isError) {
+            consecutiveFails += 1;
+            lastError = resultText;
+          } else {
+            consecutiveFails = 0;
+          }
           trace.push({ tool: name, input, ok: !isError });
           responseParts.push({
             functionResponse: {
@@ -207,6 +216,14 @@ export class AgentService {
               response: isError ? { error: resultText } : { result: resultText },
             },
           });
+        }
+        // 연속 4회 실패면 모델이 형식을 못 고치는 것 — 낭비 말고 실제 오류를 안내한다.
+        if (consecutiveFails >= 4) {
+          this.logger.warn(`연속 도구 실패 ${consecutiveFails}회로 중단 (userIdx: ${userIdx})`);
+          return {
+            reply: `요청을 처리하다 같은 오류가 반복돼 멈췄어요.\n오류: ${lastError.slice(0, 300)}\n\n다시 시도하거나, 등록할 내용을 더 구체적으로 알려주세요.`,
+            toolCalls: trace,
+          };
         }
         contents.push({ role: 'user', parts: responseParts });
         continue;
@@ -222,7 +239,9 @@ export class AgentService {
     }
 
     return {
-      reply: '도구 호출이 너무 길어져 중단했어요. 요청을 더 작게 나눠서 다시 시도해주세요.',
+      reply: lastError
+        ? `여러 단계를 처리하다 중단됐어요. 마지막 오류: ${lastError.slice(0, 200)}\n\n요청을 더 작게 나눠서 다시 시도해주세요.`
+        : '도구 호출이 너무 길어져 중단했어요. 요청을 더 작게 나눠서 다시 시도해주세요.',
       toolCalls: trace,
     };
   }
