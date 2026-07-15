@@ -115,9 +115,9 @@ interface NotionSearchResult {
   }>;
 }
 
-/** 노션 API 호출기 — 사용자 토큰으로 도구 실행 */
+/** 노션 API 호출기 — 사용자 토큰으로 도구 실행 (토큰 미설정이면 안내 에러) */
 export class NotionToolExecutor {
-  constructor(private readonly token: string) {}
+  constructor(private readonly token: string | null) {}
 
   canHandle(toolName: string): boolean {
     return toolName.startsWith('notion_');
@@ -142,6 +142,11 @@ export class NotionToolExecutor {
   }
 
   async execute(toolName: string, input: Record<string, unknown>): Promise<string> {
+    if (!this.token) {
+      throw new Error(
+        '노션 토큰이 설정되지 않았습니다. 노션 기능을 쓰려면 설정 화면에서 노션 Integration 토큰을 먼저 입력해주세요.',
+      );
+    }
     switch (toolName) {
       case 'notion_search': {
         const body: Record<string, unknown> = { query: input.query, page_size: 10 };
