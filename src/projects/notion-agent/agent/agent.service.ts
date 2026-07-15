@@ -90,6 +90,7 @@ export class AgentService {
     history: ChatTurn[],
     message: string,
     model?: string,
+    signal?: AbortSignal,
   ): Promise<ChatResult> {
     const agentModel = resolveModel(model);
     const { notionToken, geminiKey, youtubeKey } =
@@ -134,23 +135,38 @@ export class AgentService {
       // thinking을 끄면 함수호출이 훨씬 안정적이다. 켜두면 복잡한 도구 스키마에서
       // gemini-2.5-flash가 thought만 내고 도구/텍스트 없는 빈 응답을 자주 낸다.
       thinkingConfig: { thinkingBudget: 0 },
+      // 사용자가 취소하면(클라이언트 연결 끊김) 진행 중인 Gemini 호출도 중단한다.
+      abortSignal: signal,
     };
     const trace: ToolCallTrace[] = [];
+    const canceled = (): ChatResult => {
+      this.logger.log(`에이전트 취소됨 (userIdx: ${userIdx}, 도구 ${trace.length}회)`);
+      return { reply: '요청을 취소했어요.', toolCalls: trace };
+    };
 
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      if (signal?.aborted) return canceled();
       // gemini-2.5-flash가 간헐적으로(주로 일시적 레이트리밋) 도구도 텍스트도 없는
       // 빈 응답을 내는 경우가 있어 백오프를 두고 최대 3회까지 재시도한다.
-      let response = await ai.models.generateContent({ model: agentModel, contents, config });
-      for (
-        let attempt = 1;
-        attempt < 3 &&
-        (response.functionCalls?.length ?? 0) === 0 &&
-        !response.text?.trim();
-        attempt++
-      ) {
-        this.logger.warn(`빈 응답 재시도 (userIdx: ${userIdx}, ${attempt}/2)`);
-        await new Promise((r) => setTimeout(r, 800 * attempt));
+      let response;
+      try {
         response = await ai.models.generateContent({ model: agentModel, contents, config });
+        for (
+          let attempt = 1;
+          attempt < 3 &&
+          (response.functionCalls?.length ?? 0) === 0 &&
+          !response.text?.trim();
+          attempt++
+        ) {
+          if (signal?.aborted) return canceled();
+          this.logger.warn(`빈 응답 재시도 (userIdx: ${userIdx}, ${attempt}/2)`);
+          await new Promise((r) => setTimeout(r, 800 * attempt));
+          response = await ai.models.generateContent({ model: agentModel, contents, config });
+        }
+      } catch (error) {
+        // 취소로 인한 중단이면 조용히 반환(클라이언트는 이미 떠났다), 그 외엔 전파
+        if (signal?.aborted) return canceled();
+        throw error;
       }
 
       const calls = response.functionCalls ?? [];
