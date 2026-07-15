@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { searchStudios, findStudio, getStudioAvailability } from './band-room-client';
+import { BandStudioService } from './band-studio.service';
 import type { AgentTool } from './agent-tool';
 
 /**
- * 합주실(band-room) 도구 — 백엔드 내장 실행.
- * 이전엔 band-room-mcp를 stdio 서브프로세스로 spawn했으나, 프로덕션 배포에서
- * 서브프로세스가 없어 실패했다. band-room-client(fetch)를 직접 호출하도록 바꿔
- * 배포 환경과 무관하게 항상 동작한다. 도구 스키마/응답 형식은 MCP 서버와 동일.
+ * 합주실 도구 — 백엔드 내장 실행.
+ * 합주실 목록은 우리 DB(sb_band_studio)에서, 실시간 빈 시간은 네이버 예약을 직접 조회한다.
+ * 조회 경로 어디에도 band-room.com 의존이 없다 — band-room이 사라져도 동작한다.
+ * (BandStudioService가 카탈로그+네이버 조회를 담당. 이 클래스는 도구 스키마/응답 형식만 정의.)
  */
 @Injectable()
 export class BandRoomService {
+  constructor(private readonly studios: BandStudioService) {}
+
   private readonly toolDefs: AgentTool[] = [
     {
       name: 'search_studios',
@@ -71,7 +73,7 @@ export class BandRoomService {
   async execute(toolName: string, input: Record<string, unknown>): Promise<string> {
     switch (toolName) {
       case 'search_studios': {
-        const studios = await searchStudios({
+        const studios = await this.studios.searchStudios({
           region: input.region as string | undefined,
           query: input.query as string | undefined,
           naverOnly: input.naver_only as boolean | undefined,
@@ -82,14 +84,14 @@ export class BandRoomService {
           address: s.address,
           priceRange: s.priceRange,
           openHours: s.openHours,
-          rooms: s.rooms.map((r) => `${r.name} ${r.price}`),
-          realtimeAvailable: s.naver !== null,
-          businessId: s.naver?.businessId ?? null,
+          rooms: (s.rooms ?? []).map((r) => `${r.name} ${r.price}`),
+          realtimeAvailable: !!s.businessId,
+          businessId: s.businessId,
         }));
         return JSON.stringify({ count: summary.length, studios: summary });
       }
       case 'get_available_slots': {
-        const result = await getStudioAvailability(
+        const result = await this.studios.getStudioAvailability(
           input.studio as string,
           input.date as string,
         );
@@ -109,7 +111,7 @@ export class BandRoomService {
         });
       }
       case 'get_reservation_url': {
-        const found = await findStudio(input.studio as string);
+        const found = await this.studios.findStudio(input.studio as string);
         if (!found) throw new Error(`합주실을 찾을 수 없습니다: ${input.studio}`);
         return JSON.stringify({
           name: found.name,
