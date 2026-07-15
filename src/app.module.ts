@@ -17,6 +17,8 @@ import { TicketUserModule } from './projects/bookings/ticket-user/ticket-user.mo
 import { MemberBankAccountModule } from './projects/bookings/member-bank-account/member-bank-account.module';
 import { NotionCredential } from './projects/notion-agent/notion-credential.entity';
 import { NotionAgentModule } from './projects/notion-agent/notion-agent.module';
+import { AccessLog } from './shared/access-log/access-log.entity';
+import { AccessLogModule } from './shared/access-log/access-log.module';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { NotionAgentModule } from './projects/notion-agent/notion-agent.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'subculture_ground',
-      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential],
+      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential, AccessLog],
       synchronize: process.env.NODE_ENV !== 'production',
     }),
     MemberModule,
@@ -37,6 +39,7 @@ import { NotionAgentModule } from './projects/notion-agent/notion-agent.module';
     TicketUserModule,
     MemberBankAccountModule,
     NotionAgentModule,
+    AccessLogModule,
   ],
   controllers: [AppController],
   providers: [AppService],
