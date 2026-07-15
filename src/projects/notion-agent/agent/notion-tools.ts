@@ -86,7 +86,9 @@ export const NOTION_TOOL_DEFINITIONS: AgentTool[] = [
   },
   {
     name: 'notion_update_page',
-    description: '기존 페이지의 속성을 수정한다. properties는 JSON 문자열. 일정 변경/취소(archived) 등에 사용.',
+    description:
+      '기존 페이지의 **속성만** 수정한다(제목·날짜·상태 등). properties는 JSON 문자열. ' +
+      '⚠️ 페이지 **본문 내용(글·제목블록·영상 등)은 여기로 못 쓴다 — notion_append_blocks를 써라.** 일정 변경/취소(archived) 등에 사용.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -109,6 +111,34 @@ export const NOTION_TOOL_DEFINITIONS: AgentTool[] = [
         page_id: { type: 'string' },
       },
       required: ['page_id'],
+    },
+  },
+  {
+    name: 'notion_get_blocks',
+    description:
+      '페이지(또는 블록)의 본문 콘텐츠 블록들을 조회한다. 다른 페이지의 본문 구성을 참고해 똑같이 채우고 싶을 때 먼저 이걸로 읽는다.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        block_id: { type: 'string', description: '대상 페이지 또는 블록 ID' },
+      },
+      required: ['block_id'],
+    },
+  },
+  {
+    name: 'notion_append_blocks',
+    description:
+      '페이지 **본문**에 콘텐츠 블록을 추가한다. **페이지 본문에 글/제목/목록/인용/영상 등 내용을 작성할 때 반드시 이 도구를 쓴다** ' +
+      '(notion_update_page는 속성만 수정하고 본문은 못 쓴다). block_id는 대상 페이지 id, children는 Notion block 배열의 **JSON 문자열**. ' +
+      '예: [{"object":"block","type":"heading_2","heading_2":{"rich_text":[{"text":{"content":"곡 정보"}}]}},' +
+      '{"object":"block","type":"paragraph","paragraph":{"rich_text":[{"text":{"content":"아티스트: ryo (supercell)"}}]}}]',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        block_id: { type: 'string', description: '대상 페이지(또는 블록) ID' },
+        children: { type: 'string', description: 'Notion block 배열의 JSON 문자열' },
+      },
+      required: ['block_id', 'children'],
     },
   },
 ];
@@ -222,6 +252,13 @@ export class NotionToolExecutor {
       }
       case 'notion_get_page':
         return this.call('GET', `/pages/${input.page_id}`);
+      case 'notion_get_blocks':
+        return this.call('GET', `/blocks/${input.block_id}/children?page_size=100`);
+      case 'notion_append_blocks': {
+        const children = this.parseJson('children', input.children);
+        if (!children) throw new Error('children(블록 배열 JSON 문자열)가 필요합니다.');
+        return this.call('PATCH', `/blocks/${input.block_id}/children`, { children });
+      }
       default:
         throw new Error(`알 수 없는 노션 도구: ${toolName}`);
     }
