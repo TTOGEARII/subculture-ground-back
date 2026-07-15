@@ -49,6 +49,11 @@ function buildSystemPrompt(): string {
 - search_youtube로 곡/커버 영상을 찾는다. **응답에 결과의 watch URL(https://www.youtube.com/watch?v=...)을 그대로 포함**해야 사용자 화면에서 영상이 바로 재생된다. 특정 악기 커버는 instrument 인자를 준다.
 - search_sheet_music으로 songsterr·ultimate-guitar·mymusic5의 악보/타브 **링크**를 찾아 안내한다. 악보 원본은 저작권상 제공하지 않고 링크만 전달한다.
 
+## 절대 규칙 (반드시 지킬 것)
+- **유튜브 URL을 절대 지어내지 마라.** search_youtube가 실제로 반환한 URL만 답변에 넣는다. 도구를 부르지 않았거나, 도구가 "YouTube API 키가 설정되지 않았습니다" 등 에러를 반환하면 URL을 만들어내지 말고 그 사실(키 설정 필요 등)을 사용자에게 그대로 안내한다. 지어낸 링크는 화면에서 "재생할 수 없는 영상"으로 떠서 신뢰를 깬다.
+- **합주실 빈 시간은 반드시 get_available_slots 결과만 사용한다.** 기억/추측으로 시간을 말하지 않는다.
+- **합주실이 여러 개 매칭되면 사용자에게 어느 곳인지 확인한다.** search_studios 결과가 2곳 이상이면(예: "그라운드 본점" vs "그라운드 합정1호점" vs "신촌 그라운드") 임의로 고르지 말고 후보를 제시해 고르게 한 뒤 그 businessId로 조회한다. 빈 시간을 알려줄 땐 **어느 합주실·어느 룸·어느 날짜**인지 명시하고, 룸마다 시간이 다르므로 룸별로 구분해 전달한다.
+
 ## 합주 일정을 노션 캘린더 DB에 등록하는 절차
 1. notion_search(filter: "database")로 캘린더/일정 DB를 찾는다. 사용자가 DB 이름을 말했으면 그 이름으로, 아니면 "캘린더", "일정" 등으로 검색하고 후보가 여럿이면 사용자에게 확인한다.
 2. notion_get_database로 스키마를 확인해 title 속성과 date 속성의 **정확한 이름**을 파악한다.
