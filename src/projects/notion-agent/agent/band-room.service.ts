@@ -40,7 +40,8 @@ export class BandRoomService {
         '사용자가 "8시부터 10시까지 되는 방" 처럼 **시간대(구간)**를 지정하면 start_time·end_time을 반드시 넣어라. ' +
         '그러면 응답의 각 룸에 bookableForRequestedTime(그 구간 전체가 연속으로 비어 예약 가능한지)이 담긴다. ' +
         '합주실은 보통 최소 연속 시간(예: 2시간) 제약이 있어, 시작 시각 하나만 비어도 구간 예약은 불가할 수 있으니 ' +
-        '구간 질문엔 반드시 bookableForRequestedTime로 판단한다. availableHours는 그 날 예약 가능한 개별 시작 시각 목록이다.',
+        '구간 질문엔 반드시 bookableForRequestedTime로 판단한다. availableHours는 그 날 예약 가능한 개별 시작 시각 목록이다. ' +
+        '각 룸에는 reservationUrl(그 룸 + 조회한 날짜가 미리 선택된 네이버 예약 링크)이 담긴다 — 예약 안내 시 이 룸별 링크를 그대로 준다.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -62,11 +63,16 @@ export class BandRoomService {
       name: 'get_reservation_url',
       description:
         '합주실의 네이버 예약 페이지 URL을 반환한다. 사용자가 실제 예약하려 할 때 이 링크를 안내. ' +
+        'date(YYYY-MM-DD)를 주면 링크에 **그 날짜가 미리 선택된** 상태로 열려 사용자가 날짜를 다시 안 골라도 된다. ' +
         '예약 확정은 네이버 로그인이 필요하므로 링크를 통해 사용자가 직접 진행한다.',
       inputSchema: {
         type: 'object',
         properties: {
           studio: { type: 'string', description: '합주실 이름(부분 일치 가능) 또는 businessId' },
+          date: {
+            type: 'string',
+            description: '(선택) 링크에 미리 선택할 날짜 (YYYY-MM-DD)',
+          },
         },
         required: ['studio'],
       },
@@ -112,6 +118,7 @@ export class BandRoomService {
         const endTime = typeof input.end_time === 'string' ? input.end_time : null;
         const requiredHours = startTime && endTime ? hoursInRange(startTime, endTime) : null;
 
+        const businessId = result.studio.businessId;
         return JSON.stringify({
           studio: {
             name: result.studio.name,
@@ -127,19 +134,27 @@ export class BandRoomService {
             bookableForRequestedTime: requiredHours
               ? requiredHours.every((h) => r.availableHours.includes(h))
               : null,
+            // 그 룸 + 조회 날짜가 미리 선택된 예약 링크 (시간은 네이버가 URL로 못 받아 사용자가 직접 선택)
+            reservationUrl: businessId
+              ? roomReservationUrl(businessId, r.bizItemId, result.date)
+              : appendDate(result.reservationUrl, result.date),
           })),
-          reservationUrl: result.reservationUrl,
+          reservationUrl: appendDate(result.reservationUrl, result.date),
+          note: '각 룸의 reservationUrl은 날짜가 미리 선택된 링크다. 시간은 네이버에서 직접 선택해야 한다(URL로 지정 불가).',
         });
       }
       case 'get_reservation_url': {
         const found = await this.studios.findStudio(input.studio as string);
         if (!found) throw new Error(`합주실을 찾을 수 없습니다: ${input.studio}`);
+        const date = typeof input.date === 'string' ? input.date : undefined;
         return JSON.stringify({
           name: found.name,
           address: found.address,
-          reservationUrl: found.naverUrl,
+          reservationUrl: appendDate(found.naverUrl, date),
           note: found.naverUrl
-            ? '이 링크에서 네이버 로그인 후 예약을 완료하세요.'
+            ? date
+              ? '날짜가 미리 선택된 링크입니다. 네이버 로그인 후 시간을 선택해 예약을 완료하세요.'
+              : '이 링크에서 네이버 로그인 후 예약을 완료하세요.'
             : '이 합주실은 온라인 예약 링크가 등록되어 있지 않습니다. 전화 문의가 필요할 수 있습니다.',
         });
       }
@@ -147,6 +162,18 @@ export class BandRoomService {
         throw new Error(`알 수 없는 합주실 도구: ${toolName}`);
     }
   }
+}
+
+/** 룸(bizItemId) + 날짜가 미리 선택된 네이버 예약 링크. (네이버는 startDate로 날짜만 선택됨, 시간은 불가) */
+function roomReservationUrl(businessId: string, bizItemId: string, date: string): string {
+  return `https://m.booking.naver.com/booking/10/bizes/${businessId}/items/${bizItemId}?area=bmp&lang=ko&startDate=${date}`;
+}
+
+/** 기존 예약 URL에 startDate 쿼리를 붙인다(날짜 미리 선택). date 없으면 원본 그대로. */
+function appendDate(url: string | null, date?: string): string | null {
+  if (!url || !date) return url;
+  if (/[?&]startDate=/.test(url)) return url;
+  return url + (url.includes('?') ? '&' : '?') + `startDate=${date}`;
 }
 
 /** "20:00"~"22:00" → ["20:00","21:00"] (종료 시각 미포함). 시작이 예약을 점유하는 매 시각. */
