@@ -36,6 +36,14 @@ export class NotionCredential {
   })
   geminiApiKey: string | null;
 
+  @Column({
+    name: 'youtube_api_key',
+    type: 'text',
+    nullable: true,
+    comment: 'YouTube Data API v3 키 (암호화 저장)',
+  })
+  youtubeApiKey: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamp', precision: 6 })
   createdAt: Date;
 

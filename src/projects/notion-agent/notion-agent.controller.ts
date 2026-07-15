@@ -21,6 +21,7 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 interface CredentialsDto {
   notionToken?: string;
   geminiKey?: string;
+  youtubeKey?: string;
 }
 
 /**

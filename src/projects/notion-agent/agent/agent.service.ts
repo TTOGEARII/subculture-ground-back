@@ -2,7 +2,9 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { GoogleGenAI, type Content, type Part } from '@google/genai';
 import { NotionAgentService } from '../notion-agent.service';
 import { BandRoomService } from './band-room.service';
+import { SheetMusicService } from './sheet-music.service';
 import { NOTION_TOOL_DEFINITIONS, NotionToolExecutor } from './notion-tools';
+import { YOUTUBE_TOOL_DEFINITIONS, YoutubeToolExecutor } from './youtube-tools';
 import type { AgentTool } from './agent-tool';
 
 export interface ChatTurn {
@@ -44,6 +46,8 @@ function buildSystemPrompt(): string {
 - 노션 도구(notion_*)로 페이지/데이터베이스를 검색·조회·생성·수정한다.
 - 밴드룸 도구(search_studios, get_available_slots, get_reservation_url)로 서울 합주실의 실시간 빈 시간을 조회하고 네이버 예약 링크를 안내한다.
 - 실제 예약 확정은 네이버 로그인이 필요해 대신할 수 없다 — 빈 시간 확인 후 예약 링크를 안내하고, 사용자가 예약을 마치면(또는 예약 내용을 알려주면) 노션 캘린더에 기록한다.
+- search_youtube로 곡/커버 영상을 찾는다. **응답에 결과의 watch URL(https://www.youtube.com/watch?v=...)을 그대로 포함**해야 사용자 화면에서 영상이 바로 재생된다. 특정 악기 커버는 instrument 인자를 준다.
+- search_sheet_music으로 songsterr·ultimate-guitar·mymusic5의 악보/타브 **링크**를 찾아 안내한다. 악보 원본은 저작권상 제공하지 않고 링크만 전달한다.
 
 ## 합주 일정을 노션 캘린더 DB에 등록하는 절차
 1. notion_search(filter: "database")로 캘린더/일정 DB를 찾는다. 사용자가 DB 이름을 말했으면 그 이름으로, 아니면 "캘린더", "일정" 등으로 검색하고 후보가 여럿이면 사용자에게 확인한다.
@@ -71,6 +75,7 @@ export class AgentService {
   constructor(
     private readonly credentials: NotionAgentService,
     private readonly bandRoom: BandRoomService,
+    private readonly sheetMusic: SheetMusicService,
   ) {}
 
   async chat(
@@ -80,7 +85,8 @@ export class AgentService {
     model?: string,
   ): Promise<ChatResult> {
     const agentModel = resolveModel(model);
-    const { notionToken, geminiKey } = await this.credentials.getDecryptedCredentials(userIdx);
+    const { notionToken, geminiKey, youtubeKey } =
+      await this.credentials.getDecryptedCredentials(userIdx);
     if (!geminiKey) {
       throw new BadRequestException('Gemini API 키가 설정되지 않았습니다. 설정에서 먼저 등록해주세요.');
     }
@@ -90,9 +96,12 @@ export class AgentService {
 
     const ai = new GoogleGenAI({ apiKey: geminiKey });
     const notionExecutor = new NotionToolExecutor(notionToken);
+    const youtubeExecutor = new YoutubeToolExecutor(youtubeKey);
     const agentTools: AgentTool[] = [
       ...NOTION_TOOL_DEFINITIONS,
       ...this.bandRoom.getToolDefinitions(),
+      ...YOUTUBE_TOOL_DEFINITIONS,
+      ...this.sheetMusic.getToolDefinitions(),
     ];
     const geminiTools = [
       {
@@ -151,7 +160,7 @@ export class AgentService {
           let resultText: string;
           let isError = false;
           try {
-            resultText = await this.executeTool(name, input, notionExecutor);
+            resultText = await this.executeTool(name, input, notionExecutor, youtubeExecutor);
           } catch (error) {
             resultText = error instanceof Error ? error.message : String(error);
             isError = true;
@@ -187,12 +196,19 @@ export class AgentService {
     name: string,
     input: Record<string, unknown>,
     notionExecutor: NotionToolExecutor,
+    youtubeExecutor: YoutubeToolExecutor,
   ): Promise<string> {
     if (notionExecutor.canHandle(name)) {
       return notionExecutor.execute(name, input);
     }
     if (this.bandRoom.canHandle(name)) {
       return this.bandRoom.execute(name, input);
+    }
+    if (youtubeExecutor.canHandle(name)) {
+      return youtubeExecutor.execute(name, input);
+    }
+    if (this.sheetMusic.canHandle(name)) {
+      return this.sheetMusic.execute(name, input);
     }
     throw new Error(`알 수 없는 도구: ${name}`);
   }

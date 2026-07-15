@@ -7,6 +7,7 @@ import { encrypt, decrypt } from '../../common/utils/crypto.util';
 export interface CredentialStatus {
   hasNotionToken: boolean;
   hasGeminiKey: boolean;
+  hasYoutubeKey: boolean;
   notionWorkspace: string | null;
 }
 
@@ -26,7 +27,7 @@ export class NotionAgentService {
 
   async saveCredentials(
     userIdx: number,
-    dto: { notionToken?: string; geminiKey?: string },
+    dto: { notionToken?: string; geminiKey?: string; youtubeKey?: string },
   ): Promise<void> {
     let cred = await this.credentialRepository.findOne({ where: { userIdx } });
     if (!cred) {
@@ -38,24 +39,30 @@ export class NotionAgentService {
     if (dto.geminiKey !== undefined) {
       cred.geminiApiKey = dto.geminiKey ? encrypt(dto.geminiKey) : null;
     }
+    if (dto.youtubeKey !== undefined) {
+      cred.youtubeApiKey = dto.youtubeKey ? encrypt(dto.youtubeKey) : null;
+    }
     await this.credentialRepository.save(cred);
     this.logger.log(`자격증명 저장 (userIdx: ${userIdx})`);
   }
 
   /** 복호화된 토큰 반환. 없으면 null. */
-  async getDecryptedCredentials(
-    userIdx: number,
-  ): Promise<{ notionToken: string | null; geminiKey: string | null }> {
+  async getDecryptedCredentials(userIdx: number): Promise<{
+    notionToken: string | null;
+    geminiKey: string | null;
+    youtubeKey: string | null;
+  }> {
     const cred = await this.credentialRepository.findOne({ where: { userIdx } });
     return {
       notionToken: cred?.notionToken ? decrypt(cred.notionToken) : null,
       geminiKey: cred?.geminiApiKey ? decrypt(cred.geminiApiKey) : null,
+      youtubeKey: cred?.youtubeApiKey ? decrypt(cred.youtubeApiKey) : null,
     };
   }
 
   /** 설정 여부 + 노션 토큰 유효성(워크스페이스명) 확인 */
   async getStatus(userIdx: number): Promise<CredentialStatus> {
-    const { notionToken, geminiKey } = await this.getDecryptedCredentials(userIdx);
+    const { notionToken, geminiKey, youtubeKey } = await this.getDecryptedCredentials(userIdx);
     let notionWorkspace: string | null = null;
 
     if (notionToken) {
@@ -81,6 +88,7 @@ export class NotionAgentService {
     return {
       hasNotionToken: !!notionToken,
       hasGeminiKey: !!geminiKey,
+      hasYoutubeKey: !!youtubeKey,
       notionWorkspace,
     };
   }
