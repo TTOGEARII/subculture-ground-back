@@ -20,6 +20,9 @@ import { BandStudio } from './projects/notion-agent/agent/band-studio.entity';
 import { NotionAgentModule } from './projects/notion-agent/notion-agent.module';
 import { AccessLog } from './shared/access-log/access-log.entity';
 import { AccessLogModule } from './shared/access-log/access-log.module';
+import { WaterFeeStatement } from './projects/water-fee/water-fee-statement.entity';
+import { WaterFeeUnit } from './projects/water-fee/water-fee-unit.entity';
+import { WaterFeeModule } from './projects/water-fee/water-fee.module';
 
 @Module({
   imports: [
@@ -30,7 +33,7 @@ import { AccessLogModule } from './shared/access-log/access-log.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'subculture_ground',
-      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential, AccessLog, BandStudio],
+      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential, AccessLog, BandStudio, WaterFeeStatement, WaterFeeUnit],
       synchronize: process.env.NODE_ENV !== 'production',
     }),
     MemberModule,
@@ -41,6 +44,7 @@ import { AccessLogModule } from './shared/access-log/access-log.module';
     MemberBankAccountModule,
     NotionAgentModule,
     AccessLogModule,
+    WaterFeeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
