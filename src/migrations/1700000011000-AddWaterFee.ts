@@ -15,10 +15,13 @@ export class AddWaterFee1700000011000 implements MigrationInterface {
 
   public async up(qr: QueryRunner): Promise<void> {
     if (!(await this.tableExists(qr, 'sb_water_fee_statement'))) {
+      // ⚠️ `year_month`는 MariaDB 예약어(INTERVAL 단위)라 반드시 백틱으로 감싼다.
+      // 감싸지 않으면 CREATE TABLE이 ER_PARSE_ERROR(1064)로 실패한다.
+      // (엔티티는 TypeORM이 식별자를 자동 백틱해 무관, 손으로 쓴 DDL만 주의)
       await qr.query(`
         CREATE TABLE sb_water_fee_statement (
           idx BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-          year_month VARCHAR(7) NOT NULL COMMENT '정산 년월 YYYY-MM',
+          \`year_month\` VARCHAR(7) NOT NULL COMMENT '정산 년월 YYYY-MM',
           total_water_fee INT NOT NULL DEFAULT 0 COMMENT '총 수도요금(원)',
           common_electricity INT NOT NULL DEFAULT 0 COMMENT '공동전기(원)',
           bureau_total_tons INT NOT NULL DEFAULT 0 COMMENT '수도국 총사용량(톤)',
@@ -26,7 +29,7 @@ export class AddWaterFee1700000011000 implements MigrationInterface {
           created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
           updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
           PRIMARY KEY (idx),
-          UNIQUE KEY idx_water_fee_ym (year_month)
+          UNIQUE KEY idx_water_fee_ym (\`year_month\`)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
       `);
     }
