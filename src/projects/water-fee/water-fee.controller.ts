@@ -7,6 +7,7 @@ import {
   ManagerUpdateUnitDto,
   ManagerActionDto,
   SetManagerDto,
+  UpdateExtraCostsDto,
   VerifyHouseholdDto,
   MyReadingDto,
 } from './dto/water-fee.dto';
@@ -65,6 +66,11 @@ export class WaterFeeController {
   @Put('statements/:yearMonth/manager')
   setManager(@Param('yearMonth') yearMonth: string, @Body() dto: SetManagerDto) {
     return this.service.setManager(yearMonth, dto.managerUnit, dto.identity);
+  }
+
+  @Put('statements/:yearMonth/extra-costs')
+  updateExtraCosts(@Param('yearMonth') yearMonth: string, @Body() dto: UpdateExtraCostsDto) {
+    return this.service.updateExtraCosts(yearMonth, dto.extraCosts, dto.identity);
   }
 
   @Put('statements/:yearMonth/units')

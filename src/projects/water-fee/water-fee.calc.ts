@@ -17,6 +17,12 @@ export interface UnitInput {
   discount: number; // 감면(원)
 }
 
+/** 추가비용 한 건 (이름 + 총액). 전체 세대로 균등 분배(÷15). */
+export interface ExtraCost {
+  name: string;
+  amount: number;
+}
+
 /** 명세서 전체 입력값 (월별 금액) */
 export interface StatementInput {
   totalWaterFee: number; // 총 수도요금(수도국 청구, 원)
@@ -24,6 +30,7 @@ export interface StatementInput {
   bureauTotalTons: number; // 수도국 총사용량(톤)
   stairCleaningFee: number; // 계단청소 총액(라인당, 원)
   managerUnit?: string; // 반장 호수(수고비 면제) — 없으면 기본값
+  extraCosts?: ExtraCost[]; // 계단청소 외 추가 공동비용(전체 세대 균등)
   units: UnitInput[];
 }
 
@@ -33,7 +40,8 @@ export interface UnitResult extends UnitInput {
   water: number; // 수도료 = 사용량 × 1톤당
   labor: number; // 납입/수고비
   elecStair: number; // 전기/계단
-  payment: number; // 납입액 = 수도+수고비+전기계단+기타-감면 (반장은 총수고비 추가 차감)
+  extra: number; // 추가비용 몫(= 총 추가비용 / 15)
+  payment: number; // 납입액 = 수도+수고비+전기계단+추가+기타-감면 (반장은 총수고비 추가 차감)
   isManager: boolean;
 }
 
@@ -42,18 +50,20 @@ export interface StatementResult {
   meteredTons: number; // 검침총사용량(t)
   bureauDiff: number; // 수도국과의 차이(t) = 수도국총사용량 - 검침총사용량
   totalLaborFee: number; // 총 수고비(반장 차감분)
+  totalExtra: number; // 총 추가비용(계단청소 외)
   rows: UnitResult[];
   totals: {
     usage: number;
     water: number;
     labor: number;
     elecStair: number;
+    extra: number;
     other: number;
     discount: number;
     payment: number;
     households: number;
   };
-  grandTotal: number; // 총 금액(총수도요금 + 전기계단합 + 수고비합) — 검산용
+  grandTotal: number; // 총 금액(총수도요금 + 전기계단합 + 추가합 + 수고비합) — 검산용
 }
 
 const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
@@ -82,6 +92,10 @@ export function computeStatement(input: StatementInput): StatementResult {
   // 총 수고비 = 반장 제외 전 세대 수고비 합 (반장 납입액에서 차감)
   const totalLaborFee = laborFeeEach * units.filter((u) => u.unitNo !== managerUnit).length;
 
+  // 추가비용(계단청소 외) — 전체 세대 균등 분배
+  const totalExtra = sum((input.extraCosts ?? []).map((c) => c.amount || 0));
+  const extraShare = totalExtra / TOTAL_UNITS;
+
   const rows: UnitResult[] = units.map((u) => {
     const isManager = u.unitNo === managerUnit;
     const usage = usageOf(u);
@@ -89,9 +103,9 @@ export function computeStatement(input: StatementInput): StatementResult {
     const labor = isManager ? 0 : laborFeeEach;
     const divisor = isLine12(u.unitNo) ? LINE12_DIVISOR : LINE34_DIVISOR;
     const elecStair = input.commonElectricity / TOTAL_UNITS + input.stairCleaningFee / divisor;
-    const base = water + labor + elecStair + (u.other || 0) - (u.discount || 0);
+    const base = water + labor + elecStair + extraShare + (u.other || 0) - (u.discount || 0);
     const payment = isManager ? base - totalLaborFee : base;
-    return { ...u, usage, water, labor, elecStair, payment, isManager };
+    return { ...u, usage, water, labor, elecStair, extra: extraShare, payment, isManager };
   });
 
   const totals = {
@@ -99,6 +113,7 @@ export function computeStatement(input: StatementInput): StatementResult {
     water: sum(rows.map((r) => r.water)),
     labor: sum(rows.map((r) => r.labor)),
     elecStair: sum(rows.map((r) => r.elecStair)),
+    extra: sum(rows.map((r) => r.extra)),
     other: sum(rows.map((r) => r.other || 0)),
     discount: totalDiscount,
     payment: sum(rows.map((r) => r.payment)),
@@ -110,8 +125,9 @@ export function computeStatement(input: StatementInput): StatementResult {
     meteredTons,
     bureauDiff: input.bureauTotalTons - meteredTons,
     totalLaborFee,
+    totalExtra,
     rows,
     totals,
-    grandTotal: input.totalWaterFee + totals.elecStair + totals.labor,
+    grandTotal: input.totalWaterFee + totals.elecStair + totals.extra + totals.labor,
   };
 }

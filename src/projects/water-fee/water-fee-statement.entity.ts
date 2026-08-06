@@ -37,6 +37,9 @@ export class WaterFeeStatement {
   @Column({ name: 'manager_unit', type: 'varchar', length: 10, default: '401', comment: '반장 호수(수고비 면제 + 관리 권한)' })
   managerUnit: string;
 
+  @Column({ name: 'extra_costs', type: 'simple-json', nullable: true, comment: '추가비용 [{name, amount}] (계단청소 외, 전체 균등)' })
+  extraCosts: { name: string; amount: number }[] | null;
+
   @OneToMany(() => WaterFeeUnit, (u) => u.statement, { cascade: true })
   units: WaterFeeUnit[];
 
