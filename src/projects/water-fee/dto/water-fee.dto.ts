@@ -84,6 +84,22 @@ export class SetManagerDto {
   @ValidateNested() @Type(() => IdentityDto) identity: IdentityDto;
 }
 
+/** 추가비용 한 건 */
+export class ExtraCostDto {
+  @IsString() @IsNotEmpty() name: string;
+  @IsInt() @Min(0) amount: number;
+}
+
+/** 추가비용 목록 통째 교체 (관리자) */
+export class UpdateExtraCostsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExtraCostDto)
+  extraCosts: ExtraCostDto[];
+
+  @ValidateNested() @Type(() => IdentityDto) identity: IdentityDto;
+}
+
 /** 신원만 필요한 관리자 작업(삭제·아이디 초기화) */
 export class ManagerActionDto {
   @ValidateNested() @Type(() => IdentityDto) identity: IdentityDto;

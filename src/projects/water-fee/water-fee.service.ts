@@ -18,6 +18,7 @@ import {
   UpdateUnitDto,
   UnitPatch,
   IdentityDto,
+  ExtraCostDto,
 } from './dto/water-fee.dto';
 
 /**
@@ -155,6 +156,15 @@ export class WaterFeeService {
     return this.getStatement(yearMonth);
   }
 
+  /** 추가비용 목록 교체 (계단청소 외 임의 공동비용) */
+  async updateExtraCosts(yearMonth: string, extraCosts: ExtraCostDto[], identity: IdentityDto) {
+    await this.assertManager(identity);
+    const s = await this.findStmt(yearMonth);
+    s.extraCosts = extraCosts.map((c) => ({ name: c.name.trim(), amount: c.amount }));
+    await this.stmtRepo.save(s);
+    return this.getStatement(yearMonth);
+  }
+
   /** 반장 호수 변경 */
   async setManager(yearMonth: string, managerUnit: string, identity: IdentityDto) {
     await this.assertManager(identity);
@@ -267,12 +277,14 @@ export class WaterFeeService {
         discount: u?.discount ?? 0,
       };
     });
+    const extraCosts = s.extraCosts ?? [];
     const calc = computeStatement({
       totalWaterFee: s.totalWaterFee,
       commonElectricity: s.commonElectricity,
       bureauTotalTons: s.bureauTotalTons,
       stairCleaningFee: s.stairCleaningFee,
       managerUnit: s.managerUnit,
+      extraCosts,
       units,
     });
     return {
@@ -282,6 +294,7 @@ export class WaterFeeService {
       bureauTotalTons: s.bureauTotalTons,
       stairCleaningFee: s.stairCleaningFee,
       managerUnit: s.managerUnit ?? DEFAULT_MANAGER_UNIT,
+      extraCosts,
       ...calc,
     };
   }
