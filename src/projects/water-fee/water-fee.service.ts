@@ -11,6 +11,7 @@ import { WaterFeeStatement } from './water-fee-statement.entity';
 import { WaterFeeUnit } from './water-fee-unit.entity';
 import { WaterFeeHousehold } from './water-fee-household.entity';
 import { computeStatement, UnitInput } from './water-fee.calc';
+import { buildStatementWorkbook } from './water-fee.excel';
 import { UNIT_NUMBERS, DEFAULT_STAIR_CLEANING_FEE, DEFAULT_MANAGER_UNIT } from './water-fee.constants';
 import {
   CreateStatementDto,
@@ -49,6 +50,12 @@ export class WaterFeeService {
   async getStatement(yearMonth: string) {
     const s = await this.findStmt(yearMonth);
     return this.toResult(s);
+  }
+
+  /** 명세서를 원본 엑셀 형태(xlsx)로 생성 */
+  async generateExcel(yearMonth: string): Promise<Buffer> {
+    const result = await this.getStatement(yearMonth); // 없으면 404
+    return buildStatementWorkbook(result);
   }
 
   /** 한 세대의 월별 사용량·납입액 이력 (최근 먼저) */
