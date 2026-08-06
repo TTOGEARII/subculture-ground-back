@@ -52,10 +52,18 @@ export class WaterFeeService {
     return this.toResult(s);
   }
 
-  /** 명세서를 원본 엑셀 형태(xlsx)로 생성 */
-  async generateExcel(yearMonth: string): Promise<Buffer> {
+  /** 신원이 현재 반장 세대와 일치하는지(예외 없이 boolean) — 엑셀 가구수 열 노출 판단용 */
+  async isManagerIdentity(unitNo?: string, residentId?: string): Promise<boolean> {
+    if (!unitNo || !residentId) return false;
+    const hh = await this.householdRepo.findOne({ where: { unitNo } });
+    if (!hh || hh.residentId.trim() !== residentId.trim()) return false;
+    return unitNo === (await this.currentManagerUnit());
+  }
+
+  /** 명세서를 원본 엑셀 형태(xlsx)로 생성. 가구수 열은 반장만(includeHouseholds). */
+  async generateExcel(yearMonth: string, includeHouseholds: boolean): Promise<Buffer> {
     const result = await this.getStatement(yearMonth); // 없으면 404
-    return buildStatementWorkbook(result);
+    return buildStatementWorkbook(result, { includeHouseholds });
   }
 
   /** 한 세대의 월별 사용량·납입액 이력 (최근 먼저) */
