@@ -12,6 +12,7 @@ import { BandStudio } from './src/projects/notion-agent/agent/band-studio.entity
 import { AccessLog } from './src/shared/access-log/access-log.entity';
 import { WaterFeeStatement } from './src/projects/water-fee/water-fee-statement.entity';
 import { WaterFeeUnit } from './src/projects/water-fee/water-fee-unit.entity';
+import { WaterFeeHousehold } from './src/projects/water-fee/water-fee-household.entity';
 
 // .env 파일 로드 (Docker 환경에서는 환경 변수가 이미 설정되어 있을 수 있음)
 // 프로젝트 루트의 .env 파일 경로 (subculture-ground/.env)
@@ -31,7 +32,7 @@ export default new DataSource({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_DATABASE || 'subculture_ground',
-  entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, NotionCredential, AccessLog, BandStudio, WaterFeeStatement, WaterFeeUnit],
+  entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, NotionCredential, AccessLog, BandStudio, WaterFeeStatement, WaterFeeUnit, WaterFeeHousehold],
   migrations: process.env.NODE_ENV === 'production'
     ? ['dist/src/migrations/*.js']
     : ['src/migrations/*.ts'],
