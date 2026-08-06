@@ -22,6 +22,7 @@ import { AccessLog } from './shared/access-log/access-log.entity';
 import { AccessLogModule } from './shared/access-log/access-log.module';
 import { WaterFeeStatement } from './projects/water-fee/water-fee-statement.entity';
 import { WaterFeeUnit } from './projects/water-fee/water-fee-unit.entity';
+import { WaterFeeHousehold } from './projects/water-fee/water-fee-household.entity';
 import { WaterFeeModule } from './projects/water-fee/water-fee.module';
 
 @Module({
@@ -33,7 +34,7 @@ import { WaterFeeModule } from './projects/water-fee/water-fee.module';
       username: process.env.DB_USERNAME || 'root',
       password: process.env.DB_PASSWORD || '',
       database: process.env.DB_DATABASE || 'subculture_ground',
-      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential, AccessLog, BandStudio, WaterFeeStatement, WaterFeeUnit],
+      entities: [Member, Performance, TicketInfo, TicketUser, MemberBankAccount, SocialAccount, KakaoMessageLog, NotionCredential, AccessLog, BandStudio, WaterFeeStatement, WaterFeeUnit, WaterFeeHousehold],
       synchronize: process.env.NODE_ENV !== 'production',
     }),
     MemberModule,

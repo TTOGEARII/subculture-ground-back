@@ -34,6 +34,9 @@ export class WaterFeeStatement {
   @Column({ name: 'stair_cleaning_fee', type: 'int', default: 40000, comment: '계단청소 총액(라인당, 원)' })
   stairCleaningFee: number;
 
+  @Column({ name: 'manager_unit', type: 'varchar', length: 10, default: '401', comment: '반장 호수(수고비 면제 + 관리 권한)' })
+  managerUnit: string;
+
   @OneToMany(() => WaterFeeUnit, (u) => u.statement, { cascade: true })
   units: WaterFeeUnit[];
 

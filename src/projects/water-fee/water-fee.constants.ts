@@ -21,9 +21,13 @@ export const isLine12 = (unitNo: string): boolean => {
   return last === 1 || last === 2;
 };
 
-/** 반장(수고비 면제 + 총수고비를 납입액에서 차감) */
-export const MANAGER_UNIT = '301';
-/** 납입수고비 계수: (1톤당 ÷ 14) × 반장(301호) 사용량 = 세대별 정액 수고비 */
+/**
+ * 반장(수고비 면제 + 총수고비를 납입액에서 차감) 기본값.
+ * 반장은 교체될 수 있어 정산표별(sb_water_fee_statement.manager_unit)로 저장하고,
+ * 값이 없을 때만 이 기본값을 쓴다. (관리자 권한도 현재 반장 호수 기준)
+ */
+export const DEFAULT_MANAGER_UNIT = '401';
+/** 납입수고비 계수: (1톤당 ÷ 14) × 반장 사용량 = 세대별 정액 수고비 */
 export const LABOR_FEE_DIVISOR = 14;
 
 /** 기본 계단청소 총액(라인당) */

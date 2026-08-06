@@ -3,7 +3,7 @@ import {
   LINE12_DIVISOR,
   LINE34_DIVISOR,
   isLine12,
-  MANAGER_UNIT,
+  DEFAULT_MANAGER_UNIT,
   LABOR_FEE_DIVISOR,
 } from './water-fee.constants';
 
@@ -23,6 +23,7 @@ export interface StatementInput {
   commonElectricity: number; // 공동전기(원)
   bureauTotalTons: number; // 수도국 총사용량(톤)
   stairCleaningFee: number; // 계단청소 총액(라인당, 원)
+  managerUnit?: string; // 반장 호수(수고비 면제) — 없으면 기본값
   units: UnitInput[];
 }
 
@@ -61,27 +62,28 @@ const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
  * 수도요금 정산 계산 (엑셀 2026.07 공식 그대로).
  * - 1톤당 = (총수도요금 + 총감면) / 검침총사용량
  * - 수도료 = 사용량 × 1톤당
- * - 수고비 = (1톤당/14) × 반장(301호)사용량  [301호는 0]
+ * - 수고비 = (1톤당/14) × 반장 사용량  [반장 본인은 0]
  * - 전기계단 = 공동전기/15 + 계단청소/(라인 세대수)
- * - 납입액 = 수도 + 수고비 + 전기계단 + 기타 - 감면  [301호는 여기서 총수고비 추가 차감]
+ * - 납입액 = 수도 + 수고비 + 전기계단 + 기타 - 감면  [반장은 여기서 총수고비 추가 차감]
  */
 export function computeStatement(input: StatementInput): StatementResult {
   const units = input.units;
+  const managerUnit = input.managerUnit || DEFAULT_MANAGER_UNIT;
   const usageOf = (u: UnitInput) => u.currReading - u.prevReading;
 
   const meteredTons = sum(units.map(usageOf));
   const totalDiscount = sum(units.map((u) => u.discount || 0));
   const perTon = meteredTons > 0 ? (input.totalWaterFee + totalDiscount) / meteredTons : 0;
 
-  const manager = units.find((u) => u.unitNo === MANAGER_UNIT);
+  const manager = units.find((u) => u.unitNo === managerUnit);
   const managerUsage = manager ? usageOf(manager) : 0;
   const laborFeeEach = (perTon / LABOR_FEE_DIVISOR) * managerUsage;
 
   // 총 수고비 = 반장 제외 전 세대 수고비 합 (반장 납입액에서 차감)
-  const totalLaborFee = laborFeeEach * units.filter((u) => u.unitNo !== MANAGER_UNIT).length;
+  const totalLaborFee = laborFeeEach * units.filter((u) => u.unitNo !== managerUnit).length;
 
   const rows: UnitResult[] = units.map((u) => {
-    const isManager = u.unitNo === MANAGER_UNIT;
+    const isManager = u.unitNo === managerUnit;
     const usage = usageOf(u);
     const water = usage * perTon;
     const labor = isManager ? 0 : laborFeeEach;
