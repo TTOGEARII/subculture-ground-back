@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { WaterFeeService } from './water-fee.service';
 import {
   CreateStatementDto,
@@ -37,6 +38,18 @@ export class WaterFeeController {
   @Get('units/:unitNo/history')
   history(@Param('unitNo') unitNo: string) {
     return this.service.unitHistory(unitNo);
+  }
+
+  @Get('statements/:yearMonth/excel')
+  async excel(@Param('yearMonth') yearMonth: string, @Res() res: Response) {
+    const buf = await this.service.generateExcel(yearMonth);
+    const filename = `중앙그린빌라_수도요금_${yearMonth}.xlsx`;
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="water-fee-${yearMonth}.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Content-Length': String(buf.length),
+    });
+    res.end(buf);
   }
 
   // ── 세대 식별 ──
