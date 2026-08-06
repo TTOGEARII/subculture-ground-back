@@ -49,7 +49,11 @@ const thin: Partial<ExcelJS.Borders> = {
  * - 추가비용(계단청소 외)은 세대별 몫을 '기타(I)'에 합산(납입액 = 수도+수고비+전기계단+기타-감면 유지),
  *   항목 내역은 하단에 별도 표기.
  */
-export async function buildStatementWorkbook(s: StatementExcelData): Promise<Buffer> {
+export async function buildStatementWorkbook(
+  s: StatementExcelData,
+  opts: { includeHouseholds?: boolean } = {},
+): Promise<Buffer> {
+  const showHH = opts.includeHouseholds !== false; // 가구수 열(반장만). 기본 노출.
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(s.yearMonth, {
     pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
@@ -130,7 +134,8 @@ export async function buildStatementWorkbook(s: StatementExcelData): Promise<Buf
   cell('J9', '감면', { bold: true, fill: HEAD });
   ws.mergeCells('K8:K9'); cell('K8', '납입액\n(원)', { bold: true, fill: HEAD, wrap: true });
   ws.mergeCells('L8:L9'); cell('L8', '비고\n(원)', { bold: true, fill: HEAD, wrap: true });
-  ws.mergeCells('M8:M9'); cell('M8', '가구수', { bold: true, fill: HEAD });
+  if (showHH) { ws.mergeCells('M8:M9'); cell('M8', '가구수', { bold: true, fill: HEAD }); }
+  else { ws.getColumn(13).hidden = true; } // 가구수 열 숨김(반장 아님)
 
   // ── 본표 (10~24행) ──
   s.rows.forEach((row, i) => {
@@ -147,7 +152,7 @@ export async function buildStatementWorkbook(s: StatementExcelData): Promise<Buf
     cell(`J${r}`, r0(row.discount) || null, { numFmt: MONEY, align: 'right' });
     cell(`K${r}`, r0(row.payment), { numFmt: MONEY, align: 'right', bold: true });
     cell(`L${r}`, null);
-    cell(`M${r}`, row.households, { align: 'right' });
+    if (showHH) cell(`M${r}`, row.households, { align: 'right' });
   });
 
   // ── 합계 (25행) ──
@@ -161,7 +166,7 @@ export async function buildStatementWorkbook(s: StatementExcelData): Promise<Buf
   cell(`J${R}`, r0(s.totals.discount) || null, { numFmt: MONEY, align: 'right', bold: true, fill: HEAD });
   cell(`K${R}`, r0(s.totals.payment), { numFmt: MONEY, align: 'right', bold: true, fill: HEAD });
   cell(`L${R}`, null, { fill: HEAD });
-  cell(`M${R}`, s.totals.households, { align: 'right', bold: true, fill: HEAD });
+  if (showHH) cell(`M${R}`, s.totals.households, { align: 'right', bold: true, fill: HEAD });
 
   // ── 푸터 ──
   const totalEtc = s.totals.other + s.totals.extra;

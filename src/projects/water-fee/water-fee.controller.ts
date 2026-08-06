@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { WaterFeeService } from './water-fee.service';
 import {
@@ -41,8 +41,14 @@ export class WaterFeeController {
   }
 
   @Get('statements/:yearMonth/excel')
-  async excel(@Param('yearMonth') yearMonth: string, @Res() res: Response) {
-    const buf = await this.service.generateExcel(yearMonth);
+  async excel(
+    @Param('yearMonth') yearMonth: string,
+    @Query('unitNo') unitNo: string | undefined,
+    @Query('residentId') residentId: string | undefined,
+    @Res() res: Response,
+  ) {
+    const includeHouseholds = await this.service.isManagerIdentity(unitNo, residentId);
+    const buf = await this.service.generateExcel(yearMonth, includeHouseholds);
     const filename = `중앙그린빌라_수도요금_${yearMonth}.xlsx`;
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
