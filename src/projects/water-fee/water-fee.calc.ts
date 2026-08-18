@@ -15,6 +15,8 @@ export interface UnitInput {
   households: number; // 가구수
   other: number; // 기타(원)
   discount: number; // 감면(원)
+  entered?: boolean; // 이번 달 검침을 입력했는가 (미입력이면 지난달로 추정)
+  estUsage?: number; // 미입력 시 추정 사용량(지난달 사용량)
 }
 
 /** 추가비용 한 건 (이름 + 총액). 전체 세대로 균등 분배(÷15). */
@@ -36,21 +38,24 @@ export interface StatementInput {
 
 /** 세대별 계산 결과 (한 줄) */
 export interface UnitResult extends UnitInput {
-  usage: number; // 사용량(t) = 현재 - 이전
+  usage: number; // 사용량(t) — 입력=실제(현재-이전), 미입력=추정(지난달)
   water: number; // 수도료 = 사용량 × 1톤당
   labor: number; // 납입/수고비
   elecStair: number; // 전기/계단
   extra: number; // 추가비용 몫(= 총 추가비용 / 15)
   payment: number; // 납입액 = 수도+수고비+전기계단+추가+기타-감면 (반장은 총수고비 추가 차감)
   isManager: boolean;
+  estimated: boolean; // 사용량이 추정값인가(이번 달 미입력)
 }
 
 export interface StatementResult {
   perTon: number; // 1톤당(원) = (총수도요금 + 총감면) / 검침총사용량
-  meteredTons: number; // 검침총사용량(t)
+  meteredTons: number; // 검침총사용량(t) — 미입력분은 추정 포함
   bureauDiff: number; // 수도국과의 차이(t) = 수도국총사용량 - 검침총사용량
   totalLaborFee: number; // 총 수고비(반장 차감분)
   totalExtra: number; // 총 추가비용(계단청소 외)
+  enteredCount: number; // 이번 달 검침 입력한 세대 수
+  allEntered: boolean; // 전 세대 입력 완료 여부(false면 금액은 잠정)
   rows: UnitResult[];
   totals: {
     usage: number;
@@ -79,7 +84,8 @@ const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
 export function computeStatement(input: StatementInput): StatementResult {
   const units = input.units;
   const managerUnit = input.managerUnit || DEFAULT_MANAGER_UNIT;
-  const usageOf = (u: UnitInput) => u.currReading - u.prevReading;
+  // 표시/계산 사용량: 입력한 세대는 실제(현재-이전), 미입력 세대는 지난달 추정.
+  const usageOf = (u: UnitInput) => (u.entered ? u.currReading - u.prevReading : u.estUsage ?? 0);
 
   const meteredTons = sum(units.map(usageOf));
   const totalDiscount = sum(units.map((u) => u.discount || 0));
@@ -105,8 +111,10 @@ export function computeStatement(input: StatementInput): StatementResult {
     const elecStair = input.commonElectricity / TOTAL_UNITS + input.stairCleaningFee / divisor;
     const base = water + labor + elecStair + extraShare + (u.other || 0) - (u.discount || 0);
     const payment = isManager ? base - totalLaborFee : base;
-    return { ...u, usage, water, labor, elecStair, extra: extraShare, payment, isManager };
+    return { ...u, usage, water, labor, elecStair, extra: extraShare, payment, isManager, estimated: !u.entered };
   });
+
+  const enteredCount = units.filter((u) => u.entered).length;
 
   const totals = {
     usage: meteredTons,
@@ -126,6 +134,8 @@ export function computeStatement(input: StatementInput): StatementResult {
     bureauDiff: input.bureauTotalTons - meteredTons,
     totalLaborFee,
     totalExtra,
+    enteredCount,
+    allEntered: enteredCount === units.length,
     rows,
     totals,
     grandTotal: input.totalWaterFee + totals.elecStair + totals.extra + totals.labor,

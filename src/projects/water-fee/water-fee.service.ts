@@ -6,7 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThan, Repository } from 'typeorm';
 import { WaterFeeStatement } from './water-fee-statement.entity';
 import { WaterFeeUnit } from './water-fee-unit.entity';
 import { WaterFeeHousehold } from './water-fee-household.entity';
@@ -70,9 +70,9 @@ export class WaterFeeService {
   async unitHistory(unitNo: string) {
     this.assertValidUnit(unitNo);
     const stmts = await this.stmtRepo.find({ order: { yearMonth: 'DESC' }, relations: ['units'] });
-    return stmts
-      .map((s) => {
-        const row = this.toResult(s).rows.find((r) => r.unitNo === unitNo);
+    const rows = await Promise.all(
+      stmts.map(async (s) => {
+        const row = (await this.toResult(s)).rows.find((r) => r.unitNo === unitNo);
         return row
           ? {
               yearMonth: s.yearMonth,
@@ -85,10 +85,12 @@ export class WaterFeeService {
               discount: row.discount,
               payment: row.payment,
               isManager: row.isManager,
+              estimated: row.estimated,
             }
           : null;
-      })
-      .filter((x): x is NonNullable<typeof x> => x !== null);
+      }),
+    );
+    return rows.filter((x): x is NonNullable<typeof x> => x !== null);
   }
 
   // ── 세대 식별 ───────────────────────────────────────────
@@ -117,6 +119,7 @@ export class WaterFeeService {
     const u = s.units.find((x) => x.unitNo === unitNo);
     if (!u) throw new NotFoundException(`${yearMonth}에 ${unitNo} 세대가 없습니다.`);
     u.currReading = currReading;
+    u.entered = true; // 검침 입력 완료 표시(더 이상 추정 대상 아님)
     await this.unitRepo.save(u);
     return this.getStatement(yearMonth);
   }
@@ -152,6 +155,7 @@ export class WaterFeeService {
           households: prev?.households ?? 1,
           other: 0,
           discount: 0,
+          entered: false, // 새 달은 전부 미입력 → 입력 전까진 지난달로 추정
         });
       }),
     });
@@ -197,6 +201,7 @@ export class WaterFeeService {
     const u = s.units.find((x) => x.unitNo === unitNo);
     if (!u) throw new NotFoundException(`${yearMonth}에 ${unitNo} 세대가 없습니다.`);
     Object.assign(u, this.pickUnit(dto));
+    if (dto.currReading !== undefined) u.entered = true; // 현재검침 수정 = 입력 완료
     await this.unitRepo.save(u);
     return this.getStatement(yearMonth);
   }
@@ -211,6 +216,7 @@ export class WaterFeeService {
       const u = byNo.get(p.unitNo);
       if (!u) continue;
       Object.assign(u, this.pickUnit(p));
+      if (p.currReading !== undefined) u.entered = true;
       dirty.push(u);
     }
     if (dirty.length) await this.unitRepo.save(dirty);
@@ -278,8 +284,21 @@ export class WaterFeeService {
     return s;
   }
 
-  /** 엔티티 → 계산 결과(입력값 + 세대별 계산 + 합계) */
-  private toResult(s: WaterFeeStatement) {
+  /** 직전 달의 세대별 사용량(미입력 추정용). 없으면 빈 맵. */
+  private async prevMonthUsage(yearMonth: string): Promise<Map<string, number>> {
+    const prev = await this.stmtRepo.findOne({
+      where: { yearMonth: LessThan(yearMonth) },
+      order: { yearMonth: 'DESC' },
+      relations: ['units'],
+    });
+    const m = new Map<string, number>();
+    for (const u of prev?.units ?? []) m.set(u.unitNo, Math.max(0, u.currReading - u.prevReading));
+    return m;
+  }
+
+  /** 엔티티 → 계산 결과(입력값 + 세대별 계산 + 합계). 미입력 세대는 지난달로 추정. */
+  private async toResult(s: WaterFeeStatement) {
+    const est = await this.prevMonthUsage(s.yearMonth);
     const byNo = new Map(s.units.map((u) => [u.unitNo, u]));
     const units: UnitInput[] = UNIT_NUMBERS.map((unitNo) => {
       const u = byNo.get(unitNo);
@@ -290,6 +309,8 @@ export class WaterFeeService {
         households: u?.households ?? 1,
         other: u?.other ?? 0,
         discount: u?.discount ?? 0,
+        entered: u?.entered ?? false,
+        estUsage: est.get(unitNo) ?? 0,
       };
     });
     const extraCosts = s.extraCosts ?? [];
