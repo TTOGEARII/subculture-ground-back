@@ -105,6 +105,14 @@ export async function buildStatementWorkbook(
   const HEAD = 'FFF2F2F2';
 
   const month = Number(s.yearMonth.split('-')[1] ?? 0);
+  // 검침 월(월검침 표기): 정산월 Y → 이전검침 (Y-2)월, 현재검침 (Y-1)월
+  const readMonth = (before: number) => {
+    const d = new Date(`${s.yearMonth}-01T00:00:00`);
+    d.setMonth(d.getMonth() - before);
+    return d.getMonth() + 1;
+  };
+  const prevM = readMonth(2);
+  const currM = readMonth(1);
 
   // ── 제목 ──
   ws.mergeCells('B1:K2');
@@ -136,7 +144,9 @@ export async function buildStatementWorkbook(
 
   // ── 표 헤더 (8~9행) ──
   ws.mergeCells('B8:B9'); cell('B8', '호수', { bold: true, fill: HEAD });
-  ws.mergeCells('C8:D9'); cell('C8', '검침\n(t)', { bold: true, fill: HEAD, wrap: true });
+  ws.mergeCells('C8:D8'); cell('C8', '검침 (t)', { bold: true, fill: HEAD });
+  cell('C9', `${prevM}월`, { bold: true, fill: HEAD });
+  cell('D9', `${currM}월`, { bold: true, fill: HEAD });
   ws.mergeCells('E8:E9'); cell('E8', '사용량\n(t)', { bold: true, fill: HEAD, wrap: true });
   ws.mergeCells('F8:J8'); cell('F8', '금액 ( 원 )', { bold: true, fill: HEAD });
   cell('F9', '수도', { bold: true, fill: HEAD });
