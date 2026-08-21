@@ -105,14 +105,14 @@ export async function buildStatementWorkbook(
   const HEAD = 'FFF2F2F2';
 
   const month = Number(s.yearMonth.split('-')[1] ?? 0);
-  // 검침 월(월검침 표기): 정산서 N월 = N월 검침 → 현재검침 N월, 이전검침 (N-1)월
+  // 검침 월(월검침 표기): 정산서 N월 = (N-2)월~(N-1)월 검침 → 현재검침 (N-1)월, 이전검침 (N-2)월
   const readMonth = (before: number) => {
     const d = new Date(`${s.yearMonth}-01T00:00:00`);
     d.setMonth(d.getMonth() - before);
     return d.getMonth() + 1;
   };
-  const prevM = readMonth(1);
-  const currM = month;
+  const prevM = readMonth(2);
+  const currM = readMonth(1);
 
   // ── 제목 ──
   ws.mergeCells('B1:K2');
