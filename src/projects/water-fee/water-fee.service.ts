@@ -111,15 +111,15 @@ export class WaterFeeService {
     return { unitNo, residentId: hh.residentId, isManager: unitNo === (await this.currentManagerUnit()) };
   }
 
-  // ── 일반 세대: 내 검침 저장 ──────────────────────────────
-  /** 본인 호수의 이번 달 현재 검침값만 저장 */
-  async updateMyReading(yearMonth: string, unitNo: string, residentId: string, currReading: number) {
+  // ── 일반 세대: 이번 달 검침 저장 ──────────────────────────
+  /** 본인 호수의 '이번 달 검침(N월)'을 저장 — 다음 달 현재검침이 된다 */
+  async updateMyReading(yearMonth: string, unitNo: string, residentId: string, thisReading: number) {
     await this.assertHousehold(unitNo, residentId);
     const s = await this.findStmt(yearMonth);
     const u = s.units.find((x) => x.unitNo === unitNo);
     if (!u) throw new NotFoundException(`${yearMonth}에 ${unitNo} 세대가 없습니다.`);
-    u.currReading = currReading;
-    u.entered = true; // 검침 입력 완료 표시(더 이상 추정 대상 아님)
+    u.thisReading = thisReading;
+    u.thisEntered = true;
     await this.unitRepo.save(u);
     return this.getStatement(yearMonth);
   }
@@ -147,15 +147,19 @@ export class WaterFeeService {
       managerUnit: latest?.managerUnit ?? DEFAULT_MANAGER_UNIT,
       units: UNIT_NUMBERS.map((unitNo) => {
         const prev = prevByNo.get(unitNo);
-        const carried = prev?.currReading ?? 0; // 지난달 현재검침 → 이번달 이전검침
+        // 3검침 이월: 지난달 현재검침 → 이번달 이전검침, 지난달 '이번 달 검침' → 이번달 현재검침
+        const newPrev = prev?.currReading ?? 0;
+        const newCurr = prev?.thisReading ?? prev?.currReading ?? 0;
         return this.unitRepo.create({
           unitNo,
-          prevReading: carried,
-          currReading: carried, // 시작은 이전과 동일(사용량 0) → 사용자가 현재 검침 입력
+          prevReading: newPrev,
+          currReading: newCurr,
           households: prev?.households ?? 1,
           other: 0,
           discount: 0,
-          entered: false, // 새 달은 전부 미입력 → 입력 전까진 지난달로 추정
+          entered: prev?.thisEntered ?? false, // 현재검침 완료 여부 = 지난달 이번검침 입력 여부
+          thisReading: 0, // 이번 달 검침은 새로 입력
+          thisEntered: false,
         });
       }),
     });
@@ -208,6 +212,7 @@ export class WaterFeeService {
     if (!u) throw new NotFoundException(`${yearMonth}에 ${unitNo} 세대가 없습니다.`);
     Object.assign(u, this.pickUnit(dto));
     if (dto.currReading !== undefined) u.entered = true; // 현재검침 수정 = 입력 완료
+    if (dto.thisReading !== undefined) u.thisEntered = true; // 이번 달 검침 수정 = 입력 완료
     await this.unitRepo.save(u);
     return this.getStatement(yearMonth);
   }
@@ -223,6 +228,7 @@ export class WaterFeeService {
       if (!u) continue;
       Object.assign(u, this.pickUnit(p));
       if (p.currReading !== undefined) u.entered = true;
+      if (p.thisReading !== undefined) u.thisEntered = true;
       dirty.push(u);
     }
     if (dirty.length) await this.unitRepo.save(dirty);
@@ -278,7 +284,7 @@ export class WaterFeeService {
 
   private pickUnit(dto: UpdateUnitDto): Partial<WaterFeeUnit> {
     const out: Partial<WaterFeeUnit> = {};
-    for (const k of ['prevReading', 'currReading', 'households', 'other', 'discount'] as const) {
+    for (const k of ['prevReading', 'currReading', 'households', 'other', 'discount', 'thisReading'] as const) {
       if (dto[k] !== undefined) out[k] = dto[k];
     }
     return out;
@@ -317,6 +323,8 @@ export class WaterFeeService {
         discount: u?.discount ?? 0,
         entered: u?.entered ?? false,
         estUsage: est.get(unitNo) ?? 0,
+        thisReading: u?.thisReading ?? 0,
+        thisEntered: u?.thisEntered ?? false,
       };
     });
     const extraCosts = s.extraCosts ?? [];

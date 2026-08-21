@@ -43,6 +43,12 @@ export class WaterFeeUnit {
   @Column({ name: 'discount', type: 'int', default: 0, comment: '감면(원)' })
   discount: number;
 
-  @Column({ name: 'reading_entered', type: 'boolean', default: false, comment: '이번 달 검침 입력 여부(미입력이면 지난달로 추정)' })
+  @Column({ name: 'reading_entered', type: 'boolean', default: false, comment: '현재검침(요금계산용) 입력 여부 — 미입력이면 지난달로 추정' })
   entered: boolean;
+
+  @Column({ name: 'this_reading', type: 'int', default: 0, comment: '이번 달 검침(N월) — 다음 달 현재검침이 됨' })
+  thisReading: number;
+
+  @Column({ name: 'this_entered', type: 'boolean', default: false, comment: '이번 달 검침 입력 여부' })
+  thisEntered: boolean;
 }

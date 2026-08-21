@@ -15,8 +15,10 @@ export interface UnitInput {
   households: number; // 가구수
   other: number; // 기타(원)
   discount: number; // 감면(원)
-  entered?: boolean; // 이번 달 검침을 입력했는가 (미입력이면 지난달로 추정)
+  entered?: boolean; // 현재검침(요금계산용)을 입력했는가 (미입력이면 지난달로 추정)
   estUsage?: number; // 미입력 시 추정 사용량(지난달 사용량)
+  thisReading?: number; // 이번 달 검침(N월) — 다음 달 현재검침이 됨
+  thisEntered?: boolean; // 이번 달 검침 입력 여부
 }
 
 /** 추가비용 한 건 (이름 + 총액). 제외 세대를 뺀 나머지로 균등 분배. */
@@ -46,7 +48,9 @@ export interface UnitResult extends UnitInput {
   extra: number; // 추가비용 몫(= 총 추가비용 / 15)
   payment: number; // 납입액 = 수도+수고비+전기계단+추가+기타-감면 (반장은 총수고비 추가 차감)
   isManager: boolean;
-  estimated: boolean; // 사용량이 추정값인가(이번 달 미입력)
+  estimated: boolean; // 사용량이 추정값인가(현재검침 미입력)
+  thisReading: number; // 이번 달 검침(N월)
+  thisEntered: boolean; // 이번 달 검침 입력 여부
 }
 
 export interface StatementResult {
@@ -55,8 +59,10 @@ export interface StatementResult {
   bureauDiff: number; // 수도국과의 차이(t) = 수도국총사용량 - 검침총사용량
   totalLaborFee: number; // 총 수고비(반장 차감분)
   totalExtra: number; // 총 추가비용(계단청소 외)
-  enteredCount: number; // 이번 달 검침 입력한 세대 수
-  allEntered: boolean; // 전 세대 입력 완료 여부(false면 금액은 잠정)
+  enteredCount: number; // 현재검침(요금계산) 입력한 세대 수
+  allEntered: boolean; // 현재검침 전 세대 완료 여부(false면 금액은 잠정)
+  thisEnteredCount: number; // 이번 달 검침 입력한 세대 수
+  allThisEntered: boolean; // 이번 달 검침 전 세대 완료 여부
   rows: UnitResult[];
   totals: {
     usage: number;
@@ -122,10 +128,14 @@ export function computeStatement(input: StatementInput): StatementResult {
     const extra = extraFor(u.unitNo);
     const base = water + labor + elecStair + extra + (u.other || 0) - (u.discount || 0);
     const payment = isManager ? base - totalLaborFee : base;
-    return { ...u, usage, water, labor, elecStair, extra, payment, isManager, estimated: !u.entered };
+    return {
+      ...u, usage, water, labor, elecStair, extra, payment, isManager, estimated: !u.entered,
+      thisReading: u.thisReading ?? 0, thisEntered: !!u.thisEntered,
+    };
   });
 
   const enteredCount = units.filter((u) => u.entered).length;
+  const thisEnteredCount = units.filter((u) => u.thisEntered).length;
 
   const totals = {
     usage: meteredTons,
@@ -147,6 +157,8 @@ export function computeStatement(input: StatementInput): StatementResult {
     totalExtra,
     enteredCount,
     allEntered: enteredCount === units.length,
+    thisEnteredCount,
+    allThisEntered: thisEnteredCount === units.length,
     rows,
     totals,
     grandTotal: input.totalWaterFee + totals.elecStair + totals.extra + totals.labor,
