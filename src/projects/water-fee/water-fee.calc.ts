@@ -19,10 +19,11 @@ export interface UnitInput {
   estUsage?: number; // 미입력 시 추정 사용량(지난달 사용량)
 }
 
-/** 추가비용 한 건 (이름 + 총액). 전체 세대로 균등 분배(÷15). */
+/** 추가비용 한 건 (이름 + 총액). 제외 세대를 뺀 나머지로 균등 분배. */
 export interface ExtraCost {
   name: string;
   amount: number;
+  excludedUnits?: string[]; // 이 비용에서 제외할 호수(분담 안 함) — 없으면 전체 15세대
 }
 
 /** 명세서 전체 입력값 (월별 금액) */
@@ -98,9 +99,18 @@ export function computeStatement(input: StatementInput): StatementResult {
   // 총 수고비 = 반장 제외 전 세대 수고비 합 (반장 납입액에서 차감)
   const totalLaborFee = laborFeeEach * units.filter((u) => u.unitNo !== managerUnit).length;
 
-  // 추가비용(계단청소 외) — 전체 세대 균등 분배
-  const totalExtra = sum((input.extraCosts ?? []).map((c) => c.amount || 0));
-  const extraShare = totalExtra / TOTAL_UNITS;
+  // 추가비용(계단청소 외) — 항목마다 제외 세대를 뺀 나머지로 균등 분배(세대별 상이).
+  const extraCosts = input.extraCosts ?? [];
+  const totalExtra = sum(extraCosts.map((c) => c.amount || 0));
+  const extraFor = (unitNo: string) =>
+    sum(
+      extraCosts.map((c) => {
+        const excluded = c.excludedUnits ?? [];
+        if (excluded.includes(unitNo)) return 0;
+        const included = TOTAL_UNITS - excluded.length;
+        return included > 0 ? (c.amount || 0) / included : 0;
+      }),
+    );
 
   const rows: UnitResult[] = units.map((u) => {
     const isManager = u.unitNo === managerUnit;
@@ -109,9 +119,10 @@ export function computeStatement(input: StatementInput): StatementResult {
     const labor = isManager ? 0 : laborFeeEach;
     const divisor = isLine12(u.unitNo) ? LINE12_DIVISOR : LINE34_DIVISOR;
     const elecStair = input.commonElectricity / TOTAL_UNITS + input.stairCleaningFee / divisor;
-    const base = water + labor + elecStair + extraShare + (u.other || 0) - (u.discount || 0);
+    const extra = extraFor(u.unitNo);
+    const base = water + labor + elecStair + extra + (u.other || 0) - (u.discount || 0);
     const payment = isManager ? base - totalLaborFee : base;
-    return { ...u, usage, water, labor, elecStair, extra: extraShare, payment, isManager, estimated: !u.entered };
+    return { ...u, usage, water, labor, elecStair, extra, payment, isManager, estimated: !u.entered };
   });
 
   const enteredCount = units.filter((u) => u.entered).length;

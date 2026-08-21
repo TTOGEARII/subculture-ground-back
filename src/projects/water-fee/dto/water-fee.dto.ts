@@ -88,6 +88,7 @@ export class SetManagerDto {
 export class ExtraCostDto {
   @IsString() @IsNotEmpty() name: string;
   @IsInt() @Min(0) amount: number;
+  @IsArray() @IsString({ each: true }) @IsOptional() excludedUnits?: string[];
 }
 
 /** 추가비용 목록 통째 교체 (관리자) */
