@@ -22,11 +22,11 @@ export class VerifyHouseholdDto {
   @IsString() @IsNotEmpty() residentId: string;
 }
 
-/** 일반 세대: 이번 달 현재 검침값만 저장 (본인 호수) */
+/** 일반 세대: '이번 달 검침(N월)'만 저장 (본인 호수) */
 export class MyReadingDto {
   @IsString() @IsNotEmpty() unitNo: string;
   @IsString() @IsNotEmpty() residentId: string;
-  @IsInt() @Min(0) currReading: number;
+  @IsInt() @Min(0) thisReading: number;
 }
 
 // ── 관리자(반장) 전용 — 신원 포함 ──────────────────────────
@@ -58,6 +58,7 @@ export class UpdateUnitDto {
   @IsInt() @Min(0) @IsOptional() households?: number;
   @IsInt() @Min(0) @IsOptional() other?: number;
   @IsInt() @Min(0) @IsOptional() discount?: number;
+  @IsInt() @Min(0) @IsOptional() thisReading?: number;
 }
 
 export class UnitPatch extends UpdateUnitDto {

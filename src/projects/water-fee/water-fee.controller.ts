@@ -68,7 +68,7 @@ export class WaterFeeController {
   // ── 일반 세대: 내 검침 저장 ──
   @Put('statements/:yearMonth/my-reading')
   myReading(@Param('yearMonth') yearMonth: string, @Body() dto: MyReadingDto) {
-    return this.service.updateMyReading(yearMonth, dto.unitNo, dto.residentId, dto.currReading);
+    return this.service.updateMyReading(yearMonth, dto.unitNo, dto.residentId, dto.thisReading);
   }
 
   // ── 관리자(반장) 전용 ──
