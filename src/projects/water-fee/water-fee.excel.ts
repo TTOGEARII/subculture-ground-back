@@ -32,7 +32,7 @@ const MONEY = '#,##0';
 const TON = '#,##0';
 const PER_TON = '#,##0.0';
 const ACCOUNT_NOTE =
-  '※ 입금계좌  새마을금고  9002111163007        입금 일자는 매월 25일 까지 부탁드립니다.';
+  '※ 입금계좌  카카오뱅크  3333-38-0106723        입금 일자는 매월 25일 까지 부탁드립니다.';
 const FAX_NOTE = 'FAX : 032-524-6800';
 
 const r0 = (n: number) => Math.round(n);
