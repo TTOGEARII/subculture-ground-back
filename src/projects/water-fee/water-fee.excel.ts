@@ -56,25 +56,37 @@ export async function buildStatementWorkbook(
   const showHH = opts.includeHouseholds !== false; // 가구수 열(반장만). 기본 노출.
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(s.yearMonth, {
-    pageSetup: { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    pageSetup: {
+      paperSize: 9, // A4
+      orientation: 'portrait',
+      fitToPage: true,
+      fitToWidth: 1, // 가로는 항상 A4 세로 1페이지 폭에 맞춤
+      fitToHeight: 0, // 세로는 필요한 만큼(넘치면 다음 페이지)
+      horizontalCentered: true,
+      margins: { left: 0.3, right: 0.3, top: 0.5, bottom: 0.4, header: 0.2, footer: 0.2 },
+    },
   });
 
-  // 열 너비 (B~M)
+  // 열 너비 (B~M) — A4 세로 1페이지 폭에 맞춘 컴팩트 설정(합 ≈ 92)
   ws.columns = [
-    { width: 3 }, // A 여백
-    { width: 10 }, // B 호수
-    { width: 9 }, // C 이전검침
-    { width: 9 }, // D 현재검침
-    { width: 8 }, // E 사용량
-    { width: 11 }, // F 수도
-    { width: 11 }, // G 수고비
-    { width: 11 }, // H 전기/계단
-    { width: 10 }, // I 기타
-    { width: 10 }, // J 감면
-    { width: 13 }, // K 납입액
-    { width: 9 }, // L 비고
-    { width: 8 }, // M 가구수
+    { width: 2 }, // A 여백
+    { width: 8 }, // B 호수
+    { width: 8 }, // C 이전검침
+    { width: 8 }, // D 현재검침
+    { width: 6 }, // E 사용량
+    { width: 9 }, // F 수도
+    { width: 9 }, // G 수고비
+    { width: 9 }, // H 전기/계단
+    { width: 8 }, // I 기타
+    { width: 8 }, // J 감면
+    { width: 11 }, // K 납입액
+    { width: 7 }, // L 비고
+    { width: 7 }, // M 가구수
   ];
+  // 인쇄영역을 실제 표 범위로 고정(오른쪽 빈 열이 페이지에 끼지 않게)
+  ws.pageSetup.printArea = 'B1:M30';
+  // 명시 안 된 열(금액 F·G·H 등)의 기본 폭 — A4 세로 폭에 맞게 컴팩트하게
+  ws.properties.defaultColWidth = 9;
 
   const cell = (
     coord: string,
@@ -190,6 +202,12 @@ export async function buildStatementWorkbook(
       align: 'left', border: false, wrap: true, size: 10,
     });
   }
+
+  // 열 너비를 마지막에 강제 지정(병합셀이 있는 열도 확실히 적용) — A4 세로 1페이지 폭 기준
+  const colWidths = [2, 8, 8, 8, 6, 9, 9, 9, 8, 8, 11, 7, 7]; // A~M
+  colWidths.forEach((w, i) => {
+    ws.getColumn(i + 1).width = w;
+  });
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
