@@ -179,7 +179,13 @@ export class WaterFeeService {
   async updateExtraCosts(yearMonth: string, extraCosts: ExtraCostDto[], identity: IdentityDto) {
     await this.assertManager(identity);
     const s = await this.findStmt(yearMonth);
-    s.extraCosts = extraCosts.map((c) => ({ name: c.name.trim(), amount: c.amount }));
+    const valid = new Set(UNIT_NUMBERS as readonly string[]);
+    s.extraCosts = extraCosts.map((c) => {
+      // 제외 호수: 유효 호수만·중복 제거. 전부 제외되면(분담 세대 0) 제외를 무시한다.
+      const excluded = [...new Set((c.excludedUnits ?? []).filter((u) => valid.has(u)))];
+      const excludedUnits = excluded.length < UNIT_NUMBERS.length ? excluded : [];
+      return { name: c.name.trim(), amount: c.amount, excludedUnits };
+    });
     await this.stmtRepo.save(s);
     return this.getStatement(yearMonth);
   }
