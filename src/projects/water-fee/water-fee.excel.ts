@@ -191,17 +191,19 @@ export async function buildStatementWorkbook(
   if (showHH) cell(`M${R}`, s.totals.households, { align: 'right', bold: true, fill: HEAD });
 
   // ── 푸터 ──
-  const totalEtc = s.totals.other + s.totals.extra;
-  const grand = r0(s.totalWaterFee + totalEtc + s.totals.elecStair + s.totals.labor);
-  const collected = r0(s.totals.water - s.totals.discount + s.totals.labor + s.totals.elecStair + totalEtc);
+  // 표 합계(납입액)와 총 금액이 왜 다른지 시트에서 바로 보이게: 납입합계 ＋ 수고비 ＝ 총 금액.
+  // (수고비는 세대가 부담해 반장에게 지급 → 각자 내는 납입액 합계에선 상쇄돼 빠지고, 총 비용엔 포함된다)
+  const paymentSum = r0(s.totals.payment); // = 표 합계(K25) = 실제 걷는 금액
+  const laborSum = r0(s.totals.labor); // 총 수고비(반장 몫)
 
   cell('B26', ACCOUNT_NOTE, { align: 'left', border: false, size: 10 });
   cell('B27', FAX_NOTE, { align: 'left', border: false, size: 10 });
-  cell('J28', '총 금액', { bold: true, fill: HEAD });
-  cell('K28', grand, { numFmt: MONEY, align: 'right' });
-  cell('K29', collected, { numFmt: MONEY, align: 'right' });
-  cell('J30', '차이', { bold: true, fill: HEAD });
-  cell('K30', grand - collected, { numFmt: MONEY, align: 'right' });
+  cell('J28', '납입합계', { bold: true, fill: HEAD });
+  cell('K28', paymentSum, { numFmt: MONEY, align: 'right' });
+  cell('J29', '＋수고비', { bold: true, fill: HEAD });
+  cell('K29', laborSum, { numFmt: MONEY, align: 'right' });
+  cell('J30', '＝총금액', { bold: true, fill: HEAD });
+  cell('K30', paymentSum + laborSum, { numFmt: MONEY, align: 'right', bold: true });
 
   // ── 추가비용 내역(있을 때만) ──
   if (s.extraCosts.length) {
