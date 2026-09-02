@@ -32,3 +32,11 @@ export const LABOR_FEE_DIVISOR = 14;
 
 /** 기본 계단청소 총액(라인당) */
 export const DEFAULT_STAIR_CLEANING_FEE = 40000;
+
+/**
+ * 검침일: 매달 20일. 납기일: 매달 25일.
+ * N월 정산서가 청구하는 기간 = (N-2)월 20일 ~ (N-1)월 20일 (수도국 고지서가 두 달 늦게 나온다).
+ * 표시용 상수 — 계산에는 쓰이지 않지만, 화면·엑셀이 "몇 월 검침" 대신 날짜로 말하게 하는 근거다.
+ */
+export const METER_READING_DAY = 20;
+export const PAYMENT_DUE_DAY = 25;
