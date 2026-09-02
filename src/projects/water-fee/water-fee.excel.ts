@@ -1,5 +1,6 @@
 import * as ExcelJS from 'exceljs';
 import { UnitResult } from './water-fee.calc';
+import { METER_READING_DAY, PAYMENT_DUE_DAY } from './water-fee.constants';
 
 /** 엑셀 생성에 필요한 명세서 데이터(서비스 toResult 결과와 동형) */
 export interface StatementExcelData {
@@ -71,8 +72,8 @@ export async function buildStatementWorkbook(
   ws.columns = [
     { width: 2 }, // A 여백
     { width: 8 }, // B 호수
-    { width: 8 }, // C 이전검침
-    { width: 8 }, // D 현재검침
+    { width: 9 }, // C 시작 계량기(6월 20일)
+    { width: 9 }, // D 끝 계량기(7월 20일)
     { width: 6 }, // E 사용량
     { width: 9 }, // F 수도
     { width: 9 }, // G 수고비
@@ -80,8 +81,8 @@ export async function buildStatementWorkbook(
     { width: 8 }, // I 기타
     { width: 8 }, // J 감면
     { width: 11 }, // K 납입액
-    { width: 7 }, // L 비고
-    { width: 7 }, // M 가구수
+    { width: 6 }, // L 비고
+    { width: 6 }, // M 가구수
   ];
   // 인쇄영역을 실제 표 범위로 고정(오른쪽 빈 열이 페이지에 끼지 않게)
   ws.pageSetup.printArea = 'B1:M30';
@@ -113,10 +114,15 @@ export async function buildStatementWorkbook(
   };
   const prevM = readMonth(2);
   const currM = readMonth(1);
+  // 정산서가 청구하는 기간 — 앱 화면과 같은 표기("6월 20일 ~ 7월 20일")
+  const periodText = `${prevM}월 ${METER_READING_DAY}일 ~ ${currM}월 ${METER_READING_DAY}일`;
 
   // ── 제목 ──
   ws.mergeCells('B1:K2');
   cell('B1', `${month}월 요금내역서`, { bold: true, size: 18, border: false });
+  // 사용기간을 제목 바로 아래에 박아 둔다 — 앱과 같은 표기로, "몇 월에 쓴 물인가"를 종이에서도 한 번에 보이게.
+  ws.mergeCells('B3:K3');
+  cell('B3', `사용기간 : ${periodText}    ·    납기일 : 매월 ${PAYMENT_DUE_DAY}일까지`, { bold: true, size: 11, border: false });
   ws.getRow(1).height = 24;
   ws.getRow(2).height = 24;
 
@@ -144,9 +150,9 @@ export async function buildStatementWorkbook(
 
   // ── 표 헤더 (8~9행) ──
   ws.mergeCells('B8:B9'); cell('B8', '호수', { bold: true, fill: HEAD });
-  ws.mergeCells('C8:D8'); cell('C8', '검침 (t)', { bold: true, fill: HEAD });
-  cell('C9', `${prevM}월`, { bold: true, fill: HEAD });
-  cell('D9', `${currM}월`, { bold: true, fill: HEAD });
+  ws.mergeCells('C8:D8'); cell('C8', '계량기 숫자', { bold: true, fill: HEAD });
+  cell('C9', `${prevM}월 ${METER_READING_DAY}일`, { bold: true, fill: HEAD });
+  cell('D9', `${currM}월 ${METER_READING_DAY}일`, { bold: true, fill: HEAD });
   ws.mergeCells('E8:E9'); cell('E8', '사용량\n(t)', { bold: true, fill: HEAD, wrap: true });
   ws.mergeCells('F8:J8'); cell('F8', '금액 ( 원 )', { bold: true, fill: HEAD });
   cell('F9', '수도', { bold: true, fill: HEAD });
@@ -216,7 +222,7 @@ export async function buildStatementWorkbook(
   }
 
   // 열 너비를 마지막에 강제 지정(병합셀이 있는 열도 확실히 적용) — A4 세로 1페이지 폭 기준
-  const colWidths = [2, 8, 8, 8, 6, 9, 9, 9, 8, 8, 11, 7, 7]; // A~M
+  const colWidths = [2, 8, 9, 9, 6, 9, 9, 9, 8, 8, 11, 6, 6]; // A~M
   colWidths.forEach((w, i) => {
     ws.getColumn(i + 1).width = w;
   });
