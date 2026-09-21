@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   Matches,
@@ -59,6 +60,16 @@ export class UpdateUnitDto {
   @IsInt() @Min(0) @IsOptional() other?: number;
   @IsInt() @Min(0) @IsOptional() discount?: number;
   @IsInt() @Min(0) @IsOptional() thisReading?: number;
+
+  /**
+   * 이번 달 검침을 '아직 안 받음'으로 되돌린다(false).
+   *
+   * 검침값이 오면 thisEntered가 자동으로 true가 되는데, 세대가 0을 잘못 저장하면
+   * 그 뒤로는 되돌릴 방법이 없었다. 0은 유효한 숫자라 다시 덮어쓸 수도 없고,
+   * 접수 세대 수만 부풀고 다음 달 현재검침으로 0이 이월된다.
+   * 반장이 그 칸을 비울 수 있게 명시적으로 받는다.
+   */
+  @IsBoolean() @IsOptional() thisEntered?: boolean;
 }
 
 export class UnitPatch extends UpdateUnitDto {

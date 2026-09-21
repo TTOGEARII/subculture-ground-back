@@ -149,7 +149,9 @@ export class WaterFeeService {
         const prev = prevByNo.get(unitNo);
         // 3검침 이월: 지난달 현재검침 → 이번달 이전검침, 지난달 '이번 달 검침' → 이번달 현재검침
         const newPrev = prev?.currReading ?? 0;
-        const newCurr = prev?.thisReading ?? prev?.currReading ?? 0;
+        // 받았는지 여부는 thisEntered로만 판단한다. 값으로 판단하면(?? 폴백) 0이 널이 아니라서
+        // 검침을 안 받은 세대가 0을 이월받고, 다음 달 사용량이 음수가 된다.
+        const newCurr = prev?.thisEntered ? prev.thisReading : (prev?.currReading ?? 0);
         return this.unitRepo.create({
           unitNo,
           prevReading: newPrev,
@@ -213,6 +215,7 @@ export class WaterFeeService {
     Object.assign(u, this.pickUnit(dto));
     if (dto.currReading !== undefined) u.entered = true; // 현재검침 수정 = 입력 완료
     if (dto.thisReading !== undefined) u.thisEntered = true; // 이번 달 검침 수정 = 입력 완료
+    this.applyThisEntered(u, dto); // 잘못 저장된 0을 되돌리는 경로 — 위 자동 설정보다 뒤여야 이긴다
     await this.unitRepo.save(u);
     return this.getStatement(yearMonth);
   }
@@ -229,6 +232,7 @@ export class WaterFeeService {
       Object.assign(u, this.pickUnit(p));
       if (p.currReading !== undefined) u.entered = true;
       if (p.thisReading !== undefined) u.thisEntered = true;
+      this.applyThisEntered(u, p);
       dirty.push(u);
     }
     if (dirty.length) await this.unitRepo.save(dirty);
@@ -280,6 +284,20 @@ export class WaterFeeService {
     if (!(UNIT_NUMBERS as readonly string[]).includes(unitNo)) {
       throw new BadRequestException(`알 수 없는 호수입니다: ${unitNo}`);
     }
+  }
+
+  /**
+   * 반장이 이번 달 검침 칸을 비우는 경로.
+   *
+   * 검침값이 오면 thisEntered는 자동으로 true가 된다. 그런데 세대가 0을 잘못 저장하면
+   * 0도 유효한 숫자라 그 뒤로 되돌릴 방법이 없었다 — 접수 세대 수가 부풀고, 다음 달을
+   * 만들 때 그 0이 현재검침으로 이월돼 사용량이 음수가 된다.
+   * 비울 때는 숫자도 같이 지운다. 안 그러면 화면에 남은 0이 다시 값처럼 보인다.
+   */
+  private applyThisEntered(u: WaterFeeUnit, dto: UpdateUnitDto) {
+    if (dto.thisEntered === undefined) return;
+    u.thisEntered = dto.thisEntered;
+    if (!dto.thisEntered) u.thisReading = 0;
   }
 
   private pickUnit(dto: UpdateUnitDto): Partial<WaterFeeUnit> {
